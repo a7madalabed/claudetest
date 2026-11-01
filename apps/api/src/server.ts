@@ -1,3 +1,4 @@
+import { createDb } from "@ledgerly/db";
 import { buildApp } from "./app.js";
 import { loadEnv } from "./config/env.js";
 
@@ -10,7 +11,12 @@ try {
 }
 
 const env = loadEnv();
-const app = await buildApp(env);
+const database = createDb({
+  connectionString: env.DATABASE_URL,
+  maxConnections: env.DATABASE_POOL_MAX,
+  applicationName: "ledgerly-api",
+});
+const app = await buildApp(env, { db: database.db, closeDb: database.close });
 
 /**
  * Graceful shutdown: when the platform asks us to stop (SIGTERM during a deploy,

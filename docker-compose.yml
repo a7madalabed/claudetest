@@ -1,0 +1,27 @@
+# Local development infrastructure. Start it with `pnpm db:up`.
+# Your app code runs on your machine; only the services it depends on run in Docker.
+name: ledgerly
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ledgerly
+      POSTGRES_PASSWORD: ledgerly # local development only — never reuse in production
+      POSTGRES_DB: ledgerly
+    ports:
+      - "5432:5432"
+    volumes:
+      # Named volume: your data survives `docker compose down` (use `down -v` to wipe it).
+      - postgres-data:/var/lib/postgresql
+      # Runs once, on first start: creates the separate test database.
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledgerly -d ledgerly"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  postgres-data:

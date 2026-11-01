@@ -16,8 +16,10 @@
     "@fastify/cors": "11.3.1",
     "@fastify/helmet": "13.2.0",
     "@fastify/sensible": "6.0.7",
+    "@ledgerly/db": "workspace:*",
     "@ledgerly/shared": "workspace:*",
     "fastify": "5.12.7",
+    "fastify-plugin": "6.0.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -14,7 +14,14 @@
     "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm format:check && turbo run lint typecheck test"
+    "check": "pnpm format:check && turbo run lint typecheck test",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @ledgerly/db db:generate",
+    "db:migrate": "pnpm --filter @ledgerly/db db:migrate",
+    "db:seed": "pnpm --filter @ledgerly/db db:seed",
+    "db:reset": "pnpm --filter @ledgerly/db db:reset",
+    "db:studio": "pnpm --filter @ledgerly/db db:studio"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

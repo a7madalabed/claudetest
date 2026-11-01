@@ -19,7 +19,9 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "inputs": ["$TURBO_DEFAULT$", "migrations/**"]
     }
-  }
+  },
+  "globalPassThroughEnv": ["DATABASE_URL", "TEST_DATABASE_URL"]
 }

@@ -25,6 +25,11 @@ export default tseslint.config(
       eqeqeq: ["error", "always"],
     },
   },
+  {
+    // Command-line scripts talk to a human through the terminal; console is their UI.
+    files: ["**/src/cli/**"],
+    rules: { "no-console": "off" },
+  },
   // Must be last: turns off any rules that would fight with Prettier's formatting.
   prettier,
 );

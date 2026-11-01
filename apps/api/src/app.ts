@@ -1,9 +1,18 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import sensible from "@fastify/sensible";
+import type { Database } from "@ledgerly/db";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { Env } from "./config/env.js";
+import { databasePlugin } from "./plugins/database.js";
 import { healthRoutes } from "./routes/health.js";
+
+/** Everything the app needs from the outside world, passed in rather than created inside. */
+export interface AppDependencies {
+  db: Database;
+  /** Called on shutdown to release resources (e.g. close the connection pool). */
+  closeDb?: () => Promise<void>;
+}
 
 const VERSION = process.env.npm_package_version ?? "0.1.0";
 
@@ -14,7 +23,7 @@ const VERSION = process.env.npm_package_version ?? "0.1.0";
  * big payoff: tests can create an app and fire fake requests at it in memory
  * (see app.test.ts) — no ports, no network, very fast.
  */
-export async function buildApp(env: Env): Promise<FastifyInstance> {
+export async function buildApp(env: Env, deps: AppDependencies): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -42,6 +51,8 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
   await app.register(cors, { origin: env.CORS_ORIGINS, credentials: true });
   // Handy HTTP error helpers, e.g. `throw app.httpErrors.notFound()`.
   await app.register(sensible);
+
+  await app.register(databasePlugin, { db: deps.db, close: deps.closeDb });
 
   await app.register(healthRoutes, { version: VERSION });
 

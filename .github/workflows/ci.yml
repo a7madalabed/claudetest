@@ -21,6 +21,28 @@ jobs:
     name: Format · Lint · Typecheck · Test · Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # A real PostgreSQL for integration tests, started fresh for every run.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: ledgerly
+          POSTGRES_PASSWORD: ledgerly
+          POSTGRES_DB: ledgerly_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ledgerly"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://ledgerly:ledgerly@localhost:5432/ledgerly_test
+      TEST_DATABASE_URL: postgres://ledgerly:ledgerly@localhost:5432/ledgerly_test
+      NEXT_TELEMETRY_DISABLED: 1
+
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +60,13 @@ jobs:
 
       - run: pnpm format:check
 
+      # If someone changed schema.ts but forgot to generate a migration, the
+      # generator would create a new file here — and `git diff` fails the build.
+      - name: Migrations are in sync with the schema
+        run: |
+          pnpm --filter @ledgerly/db exec drizzle-kit check
+          pnpm db:generate
+          git add -N packages/db/migrations
+          git diff --exit-code packages/db/migrations
+
       - run: pnpm turbo run lint typecheck test build
-        env:
-          NEXT_TELEMETRY_DISABLED: 1
