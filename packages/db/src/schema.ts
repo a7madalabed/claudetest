@@ -23,6 +23,7 @@ import {
   check,
   date,
   foreignKey,
+  jsonb,
   index,
   integer,
   pgEnum,
@@ -254,6 +255,34 @@ export const transactions = pgTable(
     index("transactions_category_idx")
       .on(t.categoryId)
       .where(sql`${t.categoryId} is not null`),
+  ],
+);
+
+// ─── Idempotency keys (safe retries for POST requests) ───────────────────────
+
+/**
+ * When a client sends `Idempotency-Key: <uuid>` with a POST, we store the response
+ * here. If the same request is retried (flaky mobile network, user double-clicks),
+ * we replay the stored response instead of creating a duplicate transaction.
+ */
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    /** Hash of method + path + body: the same key with a DIFFERENT request is an error. */
+    requestHash: text("request_hash").notNull(),
+    responseStatus: integer("response_status").notNull(),
+    responseBody: jsonb("response_body").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ name: "idempotency_keys_pkey", columns: [t.userId, t.key] }),
+    // Old keys are purged after 24 h (by a background job in Stage 10).
+    index("idempotency_keys_created_at_idx").on(t.createdAt),
+    check("idempotency_keys_key_length", sql`char_length(${t.key}) between 1 and 255`),
   ],
 );
 

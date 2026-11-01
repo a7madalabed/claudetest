@@ -41,6 +41,7 @@ jobs:
     env:
       DATABASE_URL: postgres://ledgerly:ledgerly@localhost:5432/ledgerly_test
       TEST_DATABASE_URL: postgres://ledgerly:ledgerly@localhost:5432/ledgerly_test
+      API_TEST_DATABASE_URL: postgres://ledgerly:ledgerly@localhost:5432/ledgerly_api_test
       NEXT_TELEMETRY_DISABLED: 1
 
     steps:
@@ -59,6 +60,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm format:check
+
+      # The service container creates one database; the API's tests need a second.
+      - name: Create the API test database
+        run: psql "postgres://ledgerly:ledgerly@localhost:5432/ledgerly_test" -c "create database ledgerly_api_test"
 
       # If someone changed schema.ts but forgot to generate a migration, the
       # generator would create a new file here — and `git diff` fails the build.

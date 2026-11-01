@@ -46,3 +46,12 @@ export function createDb({
     close: () => pool.end(),
   };
 }
+
+/** A transaction handle, as passed to `db.transaction(async (tx) => …)`. */
+export type DbTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * Anything that can run queries: the pool-backed database OR a transaction.
+ * Services accept this so callers decide whether work joins a larger transaction.
+ */
+export type DbExecutor = Database | DbTransaction;

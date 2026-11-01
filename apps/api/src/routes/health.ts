@@ -16,32 +16,47 @@ import type { FastifyPluginAsync } from "fastify";
  *                     at once — turning a small outage into a big one.
  */
 export const healthRoutes: FastifyPluginAsync<{ version: string }> = async (app, opts) => {
-  app.get("/health", async (): Promise<HealthResponse> => {
-    return {
-      status: "ok",
-      service: "ledgerly-api",
-      version: opts.version,
-      uptimeSeconds: Math.round(process.uptime()),
-      timestamp: new Date().toISOString(),
-    };
-  });
-
-  app.get("/health/ready", async (request, reply) => {
-    const started = performance.now();
-    try {
-      await Promise.race([
-        app.db.execute(sql`select 1`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2_000)),
-      ]);
+  app.get(
+    "/health",
+    { schema: { tags: ["System"], summary: "Liveness: is the process up?" } },
+    async (): Promise<HealthResponse> => {
       return {
-        status: "ready",
-        checks: { database: { status: "up", latencyMs: Math.round(performance.now() - started) } },
+        status: "ok",
+        service: "ledgerly-api",
+        version: opts.version,
+        uptimeSeconds: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
       };
-    } catch (error) {
-      request.log.warn({ err: error }, "Readiness check failed: database unreachable");
-      return reply
-        .code(503)
-        .send({ status: "unavailable", checks: { database: { status: "down" } } });
-    }
-  });
+    },
+  );
+
+  app.get(
+    "/health/ready",
+    {
+      schema: {
+        tags: ["System"],
+        summary: "Readiness: can it serve traffic (database reachable)?",
+      },
+    },
+    async (request, reply) => {
+      const started = performance.now();
+      try {
+        await Promise.race([
+          app.db.execute(sql`select 1`),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2_000)),
+        ]);
+        return {
+          status: "ready",
+          checks: {
+            database: { status: "up", latencyMs: Math.round(performance.now() - started) },
+          },
+        };
+      } catch (error) {
+        request.log.warn({ err: error }, "Readiness check failed: database unreachable");
+        return reply
+          .code(503)
+          .send({ status: "unavailable", checks: { database: { status: "down" } } });
+      }
+    },
+  );
 };

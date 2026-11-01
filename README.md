@@ -11,7 +11,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 1   | [Foundations & architecture](./docs/stage-01-foundations-and-architecture.md) | ✅ Done |
 | 2   | [Design system](./docs/stage-02-design-system.md)                             | ✅ Done |
 | 3   | [Database design](./docs/stage-03-database-design.md)                         | ✅ Done |
-| 4   | Backend API                                                                   | ⏳      |
+| 4   | [Backend API](./docs/stage-04-backend-api.md)                                 | ✅ Done |
 | 5   | Authentication & security                                                     | ⏳      |
 | 6   | Frontend app shell                                                            | ⏳      |
 | 7   | Transactions                                                                  | ⏳      |
@@ -59,6 +59,8 @@ pnpm dev
 ```
 
 Then open http://localhost:3000 (and the living style guide at http://localhost:3000/design). The API runs on http://localhost:4000 (try http://localhost:4000/health and http://localhost:4000/health/ready).
+
+Interactive API documentation lives at **http://localhost:4000/docs**. Until real sign-in arrives in Stage 5, authenticate requests with the development header `x-dev-user-email: demo@ledgerly.app`.
 
 ## Useful commands
 

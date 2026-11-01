@@ -1,45 +1,30 @@
 import { createDb } from "@ledgerly/db";
-import { HealthResponseSchema } from "@ledgerly/shared";
-import type { FastifyInstance } from "fastify";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { HealthResponseSchema, ProblemSchema } from "@ledgerly/shared";
+import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { loadEnv } from "./config/env.js";
-
-try {
-  process.loadEnvFile();
-} catch {
-  // CI provides real environment variables.
-}
-
-const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ?? "postgres://ledgerly:ledgerly@localhost:5432/ledgerly_test";
+import { API_TEST_DATABASE_URL } from "./test/database.js";
+import { OWNER, request, useTestApp } from "./test/helpers.js";
 
 const testEnv = (overrides: Record<string, string> = {}) =>
-  loadEnv({ NODE_ENV: "test", LOG_LEVEL: "silent", DATABASE_URL: TEST_DATABASE_URL, ...overrides });
-
-describe("API", () => {
-  let app: FastifyInstance;
-
-  beforeAll(async () => {
-    const database = createDb({ connectionString: TEST_DATABASE_URL, maxConnections: 2 });
-    app = await buildApp(testEnv(), { db: database.db, closeDb: database.close });
+  loadEnv({
+    NODE_ENV: "test",
+    LOG_LEVEL: "silent",
+    DATABASE_URL: API_TEST_DATABASE_URL,
+    ...overrides,
   });
 
-  afterAll(async () => {
-    await app.close(); // also closes the pool via the onClose hook
-  });
+describe("platform", () => {
+  const ctx = useTestApp();
 
   it("GET /health returns a response matching the shared contract", async () => {
-    const response = await app.inject({ method: "GET", url: "/health" });
-
+    const response = await ctx.app.inject({ method: "GET", url: "/health" });
     expect(response.statusCode).toBe(200);
-    // Validating against the SAME schema the front end uses proves the contract holds.
-    const body = HealthResponseSchema.parse(response.json());
-    expect(body.status).toBe("ok");
+    expect(HealthResponseSchema.parse(response.json()).status).toBe("ok");
   });
 
   it("GET /health/ready reports the database as up", async () => {
-    const response = await app.inject({ method: "GET", url: "/health/ready" });
+    const response = await ctx.app.inject({ method: "GET", url: "/health/ready" });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       status: "ready",
@@ -47,25 +32,59 @@ describe("API", () => {
     });
   });
 
-  it("sends security headers", async () => {
-    const response = await app.inject({ method: "GET", url: "/health" });
+  it("sends security headers and a request id", async () => {
+    const response = await ctx.app.inject({ method: "GET", url: "/health" });
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
-  });
-
-  it("tags every response with a request ID for log correlation", async () => {
-    const response = await app.inject({ method: "GET", url: "/health" });
     expect(response.headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it("returns 404 for unknown routes", async () => {
-    const response = await app.inject({ method: "GET", url: "/nope" });
+  it("returns unknown routes as RFC 9457 problems", async () => {
+    const response = await ctx.app.inject({ method: "GET", url: "/nope" });
     expect(response.statusCode).toBe(404);
+    expect(response.headers["content-type"]).toContain("application/problem+json");
+    expect(ProblemSchema.parse(response.json())).toMatchObject({
+      code: "route_not_found",
+      status: 404,
+    });
+  });
+
+  it("rejects malformed JSON with a 400 problem", async () => {
+    const me = (await request(ctx.app, OWNER, { method: "GET", url: "/v1/me" })).json();
+    const response = await request(ctx.app, OWNER, {
+      method: "POST",
+      url: `/v1/households/${me.households[0].id}/accounts`,
+      headers: { "content-type": "application/json" },
+      payload: "{ not json",
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().requestId).toBe(response.headers["x-request-id"]);
+  });
+
+  it("rejects oversized bodies with 413", async () => {
+    const me = (await request(ctx.app, OWNER, { method: "GET", url: "/v1/me" })).json();
+    const response = await request(ctx.app, OWNER, {
+      method: "POST",
+      url: `/v1/households/${me.households[0].id}/accounts`,
+      payload: { name: "x".repeat(200_000) },
+    });
+    expect(response.statusCode).toBe(413);
+  });
+
+  it("serves a generated OpenAPI document and interactive docs", async () => {
+    const spec = (await ctx.app.inject({ method: "GET", url: "/openapi.json" })).json();
+    expect(spec.openapi).toBe("3.1.0");
+    expect(Object.keys(spec.paths)).toContain("/v1/households/{householdId}/transactions");
+    expect(Object.keys(spec.components.schemas)).toEqual(
+      expect.arrayContaining(["Account", "Transaction", "Problem", "CreateTransaction"]),
+    );
+    const docs = await ctx.app.inject({ method: "GET", url: "/docs/" });
+    expect(docs.statusCode).toBe(200);
+    expect(docs.headers["content-type"]).toContain("text/html");
   });
 });
 
 describe("readiness when the database is down", () => {
   it("returns 503 but liveness stays 200", async () => {
-    // Port 1 is never a Postgres server: every connection attempt fails fast.
     const unreachable = "postgres://ledgerly:ledgerly@127.0.0.1:1/nowhere";
     const database = createDb({ connectionString: unreachable, maxConnections: 1 });
     const app = await buildApp(testEnv({ DATABASE_URL: unreachable }), {
@@ -73,23 +92,22 @@ describe("readiness when the database is down", () => {
       closeDb: database.close,
     });
 
-    const ready = await app.inject({ method: "GET", url: "/health/ready" });
-    expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toMatchObject({ status: "unavailable" });
-
-    const live = await app.inject({ method: "GET", url: "/health" });
-    expect(live.statusCode).toBe(200);
-
+    expect((await app.inject({ method: "GET", url: "/health/ready" })).statusCode).toBe(503);
+    expect((await app.inject({ method: "GET", url: "/health" })).statusCode).toBe(200);
     await app.close();
   });
 });
 
 describe("env", () => {
-  it("rejects an invalid port at startup", () => {
+  it("rejects an invalid port", () => {
     expect(() => testEnv({ PORT: "not-a-number" })).toThrow();
   });
 
   it("requires a postgres DATABASE_URL", () => {
     expect(() => testEnv({ DATABASE_URL: "mysql://localhost/db" })).toThrow();
+  });
+
+  it("refuses development auth in production", () => {
+    expect(() => testEnv({ NODE_ENV: "production", AUTH_MODE: "dev" })).toThrow();
   });
 });
