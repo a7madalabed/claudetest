@@ -9,7 +9,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | #   | Stage                                                                         | Status  |
 | --- | ----------------------------------------------------------------------------- | ------- |
 | 1   | [Foundations & architecture](./docs/stage-01-foundations-and-architecture.md) | ✅ Done |
-| 2   | Design system                                                                 | ⏳      |
+| 2   | [Design system](./docs/stage-02-design-system.md)                             | ✅ Done |
 | 3   | Database design                                                               | ⏳      |
 | 4   | Backend API                                                                   | ⏳      |
 | 5   | Authentication & security                                                     | ⏳      |
@@ -50,7 +50,7 @@ cp apps/api/.env.example apps/api/.env && cp apps/web/.env.example apps/web/.env
 pnpm dev
 ```
 
-Then open http://localhost:3000. The API runs on http://localhost:4000 (try http://localhost:4000/health).
+Then open http://localhost:3000 (and the living style guide at http://localhost:3000/design). The API runs on http://localhost:4000 (try http://localhost:4000/health).
 
 ## Useful commands
 

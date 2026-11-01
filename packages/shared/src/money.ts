@@ -57,3 +57,28 @@ export function formatMoney(amount: MinorUnits, currency: string, locale = "en-U
     maximumFractionDigits: decimals,
   }).format(amount / 10 ** decimals);
 }
+
+/**
+ * Parses what a user typed ("1,234.5", "12", ".99") into minor units WITHOUT ever
+ * going through a floating-point number — the string is split into whole and
+ * fractional digits and combined with integer maths.
+ *
+ * Returns `null` for anything that isn't a valid non-negative amount for the
+ * currency (e.g. too many decimals: "1.234" for USD).
+ *
+ * parseMoney("1,234.5", "USD") → 123450
+ * parseMoney("1500", "JPY")    → 1500
+ * parseMoney("abc", "USD")     → null
+ */
+export function parseMoney(input: string, currency: string): MinorUnits | null {
+  const decimals = currencyDecimals(currency);
+  const cleaned = input.trim().replace(/[,\s]/g, "");
+  const pattern = decimals === 0 ? /^(\d+)$/ : new RegExp(`^(\\d*)(?:\\.(\\d{0,${decimals}}))?$`);
+  const match = pattern.exec(cleaned);
+  if (!match || cleaned === "" || cleaned === ".") return null;
+
+  const whole = match[1] || "0";
+  const fraction = (match[2] ?? "").padEnd(decimals, "0");
+  const result = Number(whole) * 10 ** decimals + Number(fraction || "0");
+  return Number.isSafeInteger(result) ? result : null;
+}
