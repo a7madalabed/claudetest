@@ -3,7 +3,6 @@ import scalar from "@scalar/fastify-api-reference";
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
 import { jsonSchemaTransform, jsonSchemaTransformObject } from "fastify-type-provider-zod";
-import { DEV_USER_HEADER } from "./auth.js";
 
 /**
  * OpenAPI documentation GENERATED from the same Zod schemas that validate requests.
@@ -13,7 +12,7 @@ import { DEV_USER_HEADER } from "./auth.js";
  *   /docs          interactive reference where you can try every endpoint
  */
 export const openApiPlugin = fp(
-  async (app: FastifyInstance, opts: { version: string }) => {
+  async (app: FastifyInstance, opts: { version: string; cookieName: string }) => {
     await app.register(swagger, {
       openapi: {
         openapi: "3.1.0",
@@ -26,6 +25,7 @@ export const openApiPlugin = fp(
         },
         servers: [{ url: "http://localhost:4000", description: "Local development" }],
         tags: [
+          { name: "Auth", description: "Sign-up, sign-in, two-factor authentication and sessions" },
           { name: "Households", description: "The current user and their households" },
           { name: "Accounts", description: "Bank accounts, cards and cash" },
           { name: "Categories", description: "Two-level income/expense categories" },
@@ -35,15 +35,17 @@ export const openApiPlugin = fp(
         ],
         components: {
           securitySchemes: {
-            devUser: {
+            session: {
               type: "apiKey",
-              in: "header",
-              name: DEV_USER_HEADER,
-              description: "Development-only auth (replaced in Stage 5). Try: demo@ledgerly.app",
+              in: "cookie",
+              name: opts.cookieName,
+              description:
+                "HttpOnly session cookie set by POST /v1/auth/login. In these docs, sign in " +
+                "first (demo: demo@ledgerly.app / correct-horse-ledger) and the browser sends it automatically.",
             },
           },
         },
-        security: [{ devUser: [] }],
+        security: [{ session: [] }],
       },
       transform: jsonSchemaTransform,
       transformObject: jsonSchemaTransformObject,

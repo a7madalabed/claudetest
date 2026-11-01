@@ -20,6 +20,7 @@ export const MeSchema = z
     id: IdSchema,
     email: z.email(),
     displayName: z.string(),
+    mfaEnabled: z.boolean(),
     households: z.array(HouseholdSchema),
   })
   .meta({ id: "Me" });

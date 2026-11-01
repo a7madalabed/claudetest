@@ -2,17 +2,7 @@ import { createDb } from "@ledgerly/db";
 import { HealthResponseSchema, ProblemSchema } from "@ledgerly/shared";
 import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
-import { loadEnv } from "./config/env.js";
-import { API_TEST_DATABASE_URL } from "./test/database.js";
-import { OWNER, request, useTestApp } from "./test/helpers.js";
-
-const testEnv = (overrides: Record<string, string> = {}) =>
-  loadEnv({
-    NODE_ENV: "test",
-    LOG_LEVEL: "silent",
-    DATABASE_URL: API_TEST_DATABASE_URL,
-    ...overrides,
-  });
+import { OWNER, request, testEnv, useTestApp } from "./test/helpers.js";
 
 describe("platform", () => {
   const ctx = useTestApp();
@@ -107,7 +97,12 @@ describe("env", () => {
     expect(() => testEnv({ DATABASE_URL: "mysql://localhost/db" })).toThrow();
   });
 
-  it("refuses development auth in production", () => {
-    expect(() => testEnv({ NODE_ENV: "production", AUTH_MODE: "dev" })).toThrow();
+  it("refuses insecure cookies in production", () => {
+    expect(() => testEnv({ NODE_ENV: "production", COOKIE_SECURE: "false" })).toThrow();
+    expect(testEnv({ NODE_ENV: "production" }).COOKIE_SECURE).toBe(true);
+  });
+
+  it("requires a 32-byte encryption key", () => {
+    expect(() => testEnv({ ENCRYPTION_KEY: Buffer.alloc(16).toString("base64") })).toThrow();
   });
 });

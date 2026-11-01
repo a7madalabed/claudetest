@@ -19,6 +19,15 @@ import {
  * reproduced by anyone, and tests can assert on it.
  */
 
+/**
+ * The demo user's password is "correct-horse-ledger". This is its Argon2id hash,
+ * computed once — so seeding doesn't need the hashing library, and the plain-text
+ * password appears only in documentation, never in the database.
+ */
+export const DEMO_PASSWORD = "correct-horse-ledger";
+const DEMO_PASSWORD_HASH =
+  "$argon2id$v=19$m=19456,t=2,p=1$0qdhTNREf1YEFdt/mL2Dcg$7Uu0tv5TpLS8YYmOt+OpxxbiZ3Ay2hs3sAiuy53lFXA"; // gitleaks:allow (not a secret)
+
 // ─── Tiny deterministic random toolkit ───────────────────────────────────────
 
 /** mulberry32: a small, fast, seedable PRNG. NOT for security — only for fake data. */
@@ -104,7 +113,11 @@ export async function seedDemoData(
   return db.transaction(async (tx) => {
     const [user] = await tx
       .insert(users)
-      .values({ email: "demo@ledgerly.app", displayName: "Alex Demo" })
+      .values({
+        email: "demo@ledgerly.app",
+        displayName: "Alex Demo",
+        passwordHash: DEMO_PASSWORD_HASH,
+      })
       .returning();
     const [household] = await tx
       .insert(households)

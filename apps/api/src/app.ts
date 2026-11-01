@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
 import type { Database } from "@ledgerly/db";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -9,13 +10,16 @@ import {
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import type { Env } from "./config/env.js";
+import { AppError } from "./lib/errors.js";
 import { accountRoutes } from "./modules/accounts/accounts.routes.js";
+import { authRoutes } from "./modules/auth/auth.routes.js";
 import { categoryRoutes } from "./modules/categories/categories.routes.js";
 import { householdRoutes, meRoutes } from "./modules/households/households.routes.js";
 import { householdScope } from "./modules/households/scope.js";
 import { reportRoutes } from "./modules/reports/reports.routes.js";
 import { transactionRoutes } from "./modules/transactions/transactions.routes.js";
 import { authPlugin } from "./plugins/auth.js";
+import { csrfPlugin } from "./plugins/csrf.js";
 import { databasePlugin } from "./plugins/database.js";
 import { errorHandlerPlugin } from "./plugins/error-handler.js";
 import { openApiPlugin } from "./plugins/openapi.js";
@@ -54,7 +58,15 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
     requestIdHeader: "x-request-id",
     // A JSON API never needs megabytes of input. A small limit blunts abuse.
     bodyLimit: 100 * 1024,
+    // Behind a load balancer, the client's real IP arrives in X-Forwarded-For.
+    // Only trust that header when we KNOW a proxy sets it — otherwise anyone could
+    // forge it to dodge IP-based rate limits.
+    trustProxy: env.TRUST_PROXY,
   }).withTypeProvider<ZodTypeProvider>();
+
+  // Only JSON bodies. Removing Fastify's default text/plain parser closes a CSRF
+  // trick where an HTML form posts JSON-looking text with enctype="text/plain".
+  app.removeContentTypeParser("text/plain");
 
   // Zod validates every request (params, query, headers, body) and every response.
   app.setValidatorCompiler(validatorCompiler);
@@ -74,12 +86,36 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
     origin: env.CORS_ORIGINS,
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE"],
-    exposedHeaders: ["location", "x-request-id", "idempotent-replayed"],
+    exposedHeaders: ["location", "x-request-id", "idempotent-replayed", "retry-after"],
   });
   await app.register(sensible);
+  await app.register(csrfPlugin, { allowedOrigins: env.CORS_ORIGINS });
+  if (env.RATE_LIMIT_ENABLED) {
+    // A generous global limit per client (stops scrapers and runaway scripts);
+    // sensitive routes set much stricter limits of their own.
+    // NOTE: counters live in this process's memory. With several API instances,
+    // each counts separately — Stage 12 moves them to Redis so limits are shared.
+    await app.register(rateLimit, {
+      global: true,
+      max: 300,
+      timeWindow: "1 minute",
+      errorResponseBuilder: (_request, context) =>
+        new AppError(
+          429,
+          "rate_limited",
+          "Too many requests",
+          `Slow down — try again in ${context.after}.`,
+        ),
+    });
+  }
   await app.register(databasePlugin, { db: deps.db, close: deps.closeDb });
-  await app.register(authPlugin);
-  if (env.API_DOCS) await app.register(openApiPlugin, { version: VERSION });
+  await app.register(authPlugin, {
+    cookieSecure: env.COOKIE_SECURE,
+    idleDays: env.SESSION_IDLE_DAYS,
+  });
+  if (env.API_DOCS) {
+    await app.register(openApiPlugin, { version: VERSION, cookieName: app.sessionCookieName });
+  }
 
   await app.register(healthRoutes, { version: VERSION });
 
@@ -87,6 +123,11 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
   // breaking existing clients.
   await app.register(
     async (v1) => {
+      await v1.register(authRoutes, {
+        prefix: "/auth",
+        encryptionKey: env.ENCRYPTION_KEY,
+        ttlDays: env.SESSION_TTL_DAYS,
+      });
       await v1.register(meRoutes);
       await v1.register(
         async (scoped) => {

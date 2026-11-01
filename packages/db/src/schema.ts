@@ -19,6 +19,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   char,
   check,
   date,
@@ -79,6 +80,19 @@ export const users = pgTable(
     id: id(),
     email: text("email").notNull(),
     displayName: text("display_name").notNull(),
+    /**
+     * Argon2id hash in PHC format ("$argon2id$v=19$m=19456,t=2,p=1$salt$hash").
+     * The algorithm, parameters and salt travel WITH the hash, so we can raise the
+     * cost later and re-hash on next login. Nullable: future single-sign-on users
+     * may never have a password.
+     */
+    passwordHash: text("password_hash"),
+    /** TOTP secret, ENCRYPTED with AES-256-GCM (never stored in plain text). */
+    totpSecretEncrypted: text("totp_secret_encrypted"),
+    /** Non-null = two-factor authentication is on. */
+    totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+    /** Last accepted 30-second TOTP time step: stops the same code being replayed. */
+    totpLastUsedStep: bigint("totp_last_used_step", { mode: "number" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -88,6 +102,54 @@ export const users = pgTable(
     check("users_email_shape", sql`${t.email} ~ '^[^@\\s]+@[^@\\s]+$'`),
     check("users_display_name_length", sql`char_length(${t.displayName}) between 1 and 100`),
   ],
+);
+
+// ─── Sessions ────────────────────────────────────────────────────────────────
+
+/**
+ * A signed-in browser/device. The cookie holds a random 256-bit token; the
+ * database stores only its SHA-256 hash. A stolen database backup therefore
+ * contains no usable session tokens — the same principle as hashing passwords.
+ */
+export const sessions = pgTable(
+  "sessions",
+  {
+    /** Public id, used to list and revoke sessions. NOT the secret token. */
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    /** Password was correct, but the second factor hasn't been verified yet. */
+    mfaPending: boolean("mfa_pending").notNull().default(false),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: createdAt(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Absolute expiry: even an active session must sign in again eventually. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("sessions_token_hash_key").on(t.tokenHash),
+    index("sessions_user_id_idx").on(t.userId),
+    // For the cleanup job that deletes expired sessions (Stage 10).
+    index("sessions_expires_at_idx").on(t.expiresAt),
+  ],
+);
+
+/** One-time backup codes for when the authenticator app is lost. Stored hashed. */
+export const recoveryCodes = pgTable(
+  "recovery_codes",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("recovery_codes_user_id_code_hash_key").on(t.userId, t.codeHash)],
 );
 
 // ─── Households (our "tenants") ──────────────────────────────────────────────
@@ -291,6 +353,7 @@ export const idempotencyKeys = pgTable(
 // (columns with defaults become optional).
 
 export type User = typeof users.$inferSelect;
+export type Session = typeof sessions.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Household = typeof households.$inferSelect;
 export type NewHousehold = typeof households.$inferInsert;

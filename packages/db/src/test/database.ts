@@ -21,6 +21,6 @@ export function createTestDb() {
 
 export async function truncateAll(db: ReturnType<typeof createTestDb>["db"]) {
   await db.execute(
-    sql`truncate table transactions, categories, accounts, household_members, households, users cascade`,
+    sql`truncate table recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users cascade`,
   );
 }

@@ -1,45 +1,96 @@
-import { eq, sql, users } from "@ledgerly/db";
-import type { FastifyInstance } from "fastify";
+import cookie from "@fastify/cookie";
+import type { Session } from "@ledgerly/db";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { unauthorized } from "../lib/errors.js";
+import { AppError, unauthorized } from "../lib/errors.js";
+import { findSession, touchSession } from "../modules/auth/sessions.service.js";
 
 declare module "fastify" {
   interface FastifyRequest {
     /** The authenticated user. Set by `app.authenticate`. */
-    user?: { id: string; email: string; displayName: string };
+    user?: { id: string; email: string; displayName: string; mfaEnabled: boolean };
+    /** The session behind this request. */
+    session?: Session;
   }
   interface FastifyInstance {
     authenticate: (request: FastifyRequest) => Promise<void>;
+    setSessionCookie: (reply: FastifyReply, token: string, expiresAt: Date) => void;
+    clearSessionCookie: (reply: FastifyReply) => void;
+    sessionCookieName: string;
+  }
+  interface FastifyContextConfig {
+    /** Allow sessions that passed the password step but not yet 2FA (e.g. the 2FA endpoint itself). */
+    allowMfaPending?: boolean;
   }
 }
 
-export const DEV_USER_HEADER = "x-dev-user-email";
+interface AuthOptions {
+  cookieSecure: boolean;
+  idleDays: number;
+}
 
 /**
- * ⚠️ TEMPORARY, DEVELOPMENT-ONLY AUTHENTICATION.
+ * Cookie-based session authentication.
  *
- * Until Stage 5 adds real sign-in (password hashing, sessions, cookies), requests
- * identify themselves with an `x-dev-user-email` header. The environment config
- * REFUSES to start in production with this mode (see config/env.ts), so it can't
- * ship by accident. Stage 5 replaces only this file's internals: routes keep
- * calling `app.authenticate` and reading `request.user`.
+ * The cookie is:
+ *  - HttpOnly  → JavaScript can't read it, so an XSS bug can't steal the session
+ *  - Secure    → only sent over HTTPS (in production)
+ *  - SameSite=Lax → not sent on cross-site POSTs: the main defence against CSRF
+ *  - __Host- prefix (when Secure) → browsers enforce Secure + Path=/ + no Domain,
+ *    so a compromised subdomain can't overwrite it
  */
 export const authPlugin = fp(
-  async (app: FastifyInstance) => {
-    app.decorateRequest("user", undefined);
+  async (app: FastifyInstance, opts: AuthOptions) => {
+    await app.register(cookie);
 
-    app.decorate("authenticate", async (request) => {
-      const email = request.headers[DEV_USER_HEADER];
-      if (typeof email !== "string" || email.length === 0) {
-        throw unauthorized(`Send the ${DEV_USER_HEADER} header (development auth).`);
+    const cookieName = opts.cookieSecure ? "__Host-ledgerly_session" : "ledgerly_session";
+    app.decorate("sessionCookieName", cookieName);
+    app.decorateRequest("user", undefined);
+    app.decorateRequest("session", undefined);
+
+    app.decorate("setSessionCookie", (reply: FastifyReply, token: string, expiresAt: Date) => {
+      reply.setCookie(cookieName, token, {
+        httpOnly: true,
+        secure: opts.cookieSecure,
+        sameSite: "lax",
+        path: "/",
+        expires: expiresAt,
+      });
+    });
+
+    app.decorate("clearSessionCookie", (reply: FastifyReply) => {
+      reply.clearCookie(cookieName, {
+        httpOnly: true,
+        secure: opts.cookieSecure,
+        sameSite: "lax",
+        path: "/",
+      });
+    });
+
+    app.decorate("authenticate", async (request: FastifyRequest) => {
+      const token = request.cookies[cookieName];
+      if (!token) throw unauthorized();
+
+      const found = await findSession(app.db, token, opts.idleDays);
+      if (!found) throw unauthorized("Your session has expired. Please sign in again.");
+
+      if (found.session.mfaPending && !request.routeOptions.config.allowMfaPending) {
+        throw new AppError(
+          401,
+          "mfa_required",
+          "Two-factor authentication required",
+          "Enter the code from your authenticator app.",
+        );
       }
-      const [user] = await app.db
-        .select({ id: users.id, email: users.email, displayName: users.displayName })
-        .from(users)
-        .where(eq(sql`lower(${users.email})`, email.toLowerCase()))
-        .limit(1);
-      if (!user) throw unauthorized("Unknown user.");
-      request.user = user;
+
+      await touchSession(app.db, found.session);
+      request.session = found.session;
+      request.user = {
+        id: found.user.id,
+        email: found.user.email,
+        displayName: found.user.displayName,
+        mfaEnabled: found.user.totpEnabledAt !== null,
+      };
     });
   },
   { name: "auth", dependencies: ["database"] },

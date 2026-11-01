@@ -1,4 +1,4 @@
-import { and, asc, eq, householdMembers, households } from "@ledgerly/db";
+import { and, eq, householdMembers, households } from "@ledgerly/db";
 import {
   HouseholdParamsSchema,
   HouseholdSchema,
@@ -7,6 +7,7 @@ import {
 } from "@ledgerly/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { notFound } from "../../lib/errors.js";
+import { getMe } from "./households.service.js";
 import { commonProblems, problems } from "../../lib/responses.js";
 
 const membershipColumns = {
@@ -40,15 +41,7 @@ export const meRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: MeSchema, ...problems(401) },
       },
     },
-    async (request) => {
-      const memberships = await app.db
-        .select(membershipColumns)
-        .from(householdMembers)
-        .innerJoin(households, eq(households.id, householdMembers.householdId))
-        .where(eq(householdMembers.userId, request.user!.id))
-        .orderBy(asc(households.name));
-      return { ...request.user!, households: memberships.map(toDto) };
-    },
+    async (request) => getMe(app.db, request.user!.id),
   );
 };
 

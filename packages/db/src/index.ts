@@ -4,7 +4,7 @@ export * from "./errors.js";
 export * from "./migrate.js";
 export * from "./queries.js";
 export * from "./schema.js";
-export { seedDemoData } from "./seed.js";
+export { DEMO_PASSWORD, seedDemoData } from "./seed.js";
 
 // Re-export Drizzle's SQL helpers so consumers (API, workers) import everything
 // database-related from ONE place and can never end up on a different Drizzle version.
