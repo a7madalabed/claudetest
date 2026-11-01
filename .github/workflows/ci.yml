@@ -1,0 +1,43 @@
+# Continuous Integration: every push and pull request is checked automatically.
+# If anything fails, GitHub shows a red ✗ and the change shouldn't be merged.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel an older run for the same branch when a newer commit arrives.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Principle of least privilege: this workflow only needs to read the code.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Format · Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads the pnpm version from the "packageManager" field in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # --frozen-lockfile: fail if pnpm-lock.yaml is out of date, so CI installs
+      # exactly the dependency versions that were tested locally.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm format:check
+
+      - run: pnpm turbo run lint typecheck test build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
