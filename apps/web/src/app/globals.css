@@ -43,12 +43,18 @@
   --warning: oklch(0.52 0.12 65);
   --warning-subtle: oklch(0.965 0.045 85);
 
-  /* Data visualisation (used from Stage 8) — distinct in hue AND lightness */
-  --chart-1: oklch(0.55 0.21 277);
-  --chart-2: oklch(0.68 0.14 175);
-  --chart-3: oklch(0.75 0.15 75);
-  --chart-4: oklch(0.6 0.2 340);
-  --chart-5: oklch(0.6 0.13 230);
+  /* Data visualisation — categorical slots, VALIDATED (not eyeballed) with the
+     dataviz skill's six-checks script: lightness band, chroma floor, colour-blind
+     (protan/deutan) separation of neighbours, normal-vision separation, contrast.
+     See docs/stage-08-dashboard-and-charts.md §3. Fixed order; never cycled. */
+  --chart-1: #5252d8; /* indigo (brand) */
+  --chart-2: #eb6834; /* orange */
+  --chart-3: #1baf7a; /* aqua */
+  --chart-4: #eda100; /* yellow */
+  --chart-5: #e87ba4; /* magenta */
+  --chart-muted: oklch(0.72 0.012 270); /* de-emphasis grey ("context" series) */
+  --chart-grid: oklch(0.93 0.004 270); /* hairline gridlines */
+  --chart-axis: oklch(0.84 0.006 270); /* baseline */
 
   /* Elevation — in light mode depth comes from soft, layered shadows */
   --elevation-1: 0 1px 2px oklch(0.2 0.02 270 / 6%), 0 1px 1px oklch(0.2 0.02 270 / 4%);
@@ -80,11 +86,15 @@
   --warning: oklch(0.82 0.13 80);
   --warning-subtle: oklch(0.28 0.05 80);
 
-  --chart-1: oklch(0.7 0.16 277);
-  --chart-2: oklch(0.75 0.13 175);
-  --chart-3: oklch(0.82 0.14 80);
-  --chart-4: oklch(0.7 0.18 340);
-  --chart-5: oklch(0.7 0.12 230);
+  /* Dark steps of the SAME hues, chosen for the dark band and re-validated. */
+  --chart-1: #737ce8;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-muted: oklch(0.5 0.012 270);
+  --chart-grid: oklch(1 0 0 / 7%);
+  --chart-axis: oklch(1 0 0 / 18%);
 
   /* In dark mode shadows are nearly invisible, so depth comes from lighter
      surfaces plus a faint top highlight (like light catching an edge). */
@@ -120,6 +130,9 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-muted: var(--chart-muted);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
 
   --shadow-elevation-1: var(--elevation-1);
   --shadow-elevation-2: var(--elevation-2);

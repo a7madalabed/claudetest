@@ -15,7 +15,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 5   | [Authentication & security](./docs/stage-05-authentication-and-security.md)   | ✅ Done |
 | 6   | [Frontend app shell](./docs/stage-06-frontend-app-shell.md)                   | ✅ Done |
 | 7   | [Transactions](./docs/stage-07-transactions.md)                               | ✅ Done |
-| 8   | Dashboard & charts                                                            | ⏳      |
+| 8   | [Dashboard & charts](./docs/stage-08-dashboard-and-charts.md)                 | ✅ Done |
 | 9   | Budgets & goals                                                               | ⏳      |
 | 10  | Imports & background jobs                                                     | ⏳      |
 | 11  | Households & real-time                                                        | ⏳      |

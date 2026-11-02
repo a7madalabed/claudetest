@@ -38,3 +38,54 @@ export const SpendingByCategoryReportSchema = z
     ),
   })
   .meta({ id: "SpendingByCategoryReport" });
+
+export const SpendingByCategoryQuerySchema = DateRangeQuerySchema.and(
+  z.object({
+    parentId: IdSchema.optional().meta({
+      description: "Drill into one top-level category's subcategories",
+    }),
+  }),
+);
+
+export const NetWorthReportSchema = z
+  .object({
+    currency: z.string(),
+    points: z.array(
+      z.object({ month: z.string().meta({ example: "2026-03" }), balanceMinor: MinorUnitsSchema }),
+    ),
+  })
+  .meta({ id: "NetWorthReport" });
+export type NetWorthReport = z.infer<typeof NetWorthReportSchema>;
+
+export const DailyCashflowReportSchema = z
+  .object({
+    days: z.array(
+      z.object({
+        date: IsoDateSchema,
+        incomeMinor: MinorUnitsSchema,
+        spendingMinor: MinorUnitsSchema,
+      }),
+    ),
+  })
+  .meta({ id: "DailyCashflowReport" });
+export type DailyCashflowReport = z.infer<typeof DailyCashflowReportSchema>;
+
+/** Rearrangeable dashboard widgets (the "Trends" section). Unknown ids are rejected. */
+export const DashboardWidgetSchema = z.enum([
+  "cashflow",
+  "spending-by-category",
+  "net-worth",
+  "accounts",
+  "recent-activity",
+]);
+export type DashboardWidget = z.infer<typeof DashboardWidgetSchema>;
+
+export const DashboardLayoutSchema = z
+  .object({
+    widgets: z
+      .array(DashboardWidgetSchema)
+      .max(20)
+      .refine((ids) => new Set(ids).size === ids.length, "Each widget can appear only once"),
+  })
+  .meta({ id: "DashboardLayout" });
+export type DashboardLayout = z.infer<typeof DashboardLayoutSchema>;

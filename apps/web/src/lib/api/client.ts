@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { ApiError } from "./errors";
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 interface RequestOptions<S extends z.ZodType | undefined> {
   method?: Method;

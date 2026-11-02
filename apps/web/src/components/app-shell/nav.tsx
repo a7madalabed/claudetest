@@ -17,7 +17,7 @@ export interface NavItem {
 
 export function householdNav(householdId: string): NavItem[] {
   return [
-    { href: `/app/${householdId}`, label: "Overview", icon: LayoutDashboard, exact: true },
+    { href: `/app/${householdId}`, label: "Dashboard", icon: LayoutDashboard, exact: true },
     { href: `/app/${householdId}/transactions`, label: "Transactions", icon: ArrowLeftRight },
     { href: `/app/${householdId}/accounts`, label: "Accounts", icon: Wallet },
   ];

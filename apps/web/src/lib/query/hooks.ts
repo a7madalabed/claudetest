@@ -66,6 +66,8 @@ export function useCashflow(householdId: string, range: { from: string; to: stri
         schema: CashflowReportSchema,
         signal,
       }),
+    // Changing the range keeps the old chart (dimmed) until the new data arrives.
+    placeholderData: (previous) => previous,
   });
 }
 

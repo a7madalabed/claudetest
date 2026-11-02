@@ -1,0 +1,380 @@
+"use client";
+
+import { ArrowRight, ChevronLeft } from "lucide-react";
+import Link from "next/link";
+import { useState, type ReactNode } from "react";
+import { BarList, type BarListItem } from "@/components/charts/bar-list";
+import { ChartCard } from "@/components/charts/chart-card";
+import { ColumnChart } from "@/components/charts/column-chart";
+import { fullMoney, longMonth, shortMoney, shortMonth } from "@/components/charts/format";
+import { Legend } from "@/components/charts/legend";
+import { LineChart } from "@/components/charts/line-chart";
+import { AnimatedMoney } from "@/components/money";
+import { accountIcons, TransactionList } from "@/components/overview/overview";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { spendingPace } from "@/lib/dashboard";
+import { useAccounts, useCashflow, useCategories, useRecentTransactions } from "@/lib/query/hooks";
+import { useNetWorth, useSpendingByCategory } from "@/lib/query/reports";
+
+type Range = { from: string; to: string };
+const SERIES = {
+  income: { key: "incomeMinor", label: "Income", color: "var(--chart-1)" },
+  spending: { key: "spendingMinor", label: "Spending", color: "var(--chart-2)" },
+};
+
+function ChartSkeleton({ height = 248 }: { height?: number }) {
+  return <Skeleton className="w-full rounded-xl" style={{ height }} />;
+}
+
+// ─── Cash flow: income vs spending per month (grouped columns) ───────────────
+
+export function CashflowWidget({
+  householdId,
+  range,
+  currency,
+  handle,
+}: {
+  householdId: string;
+  range: Range;
+  currency: string;
+  handle: ReactNode;
+}) {
+  const { data, isPending, isPlaceholderData } = useCashflow(householdId, range);
+  const months = data?.months;
+  const net = months?.reduce((sum, m) => sum + m.netMinor, 0) ?? 0;
+  return (
+    <ChartCard
+      title="Cash flow"
+      subtitle={
+        months
+          ? `${net >= 0 ? "Saved" : "Overspent by"} ${fullMoney(Math.abs(net), currency)} over ${months.length} months`
+          : " "
+      }
+      dragHandle={handle}
+      pending={isPlaceholderData}
+      // Two series → a legend is always present; marks are rects, so swatches are too.
+      legend={<Legend items={[SERIES.income, SERIES.spending]} />}
+      table={
+        months && {
+          columns: ["Month", "Income", "Spending", "Net"],
+          numeric: [1, 2, 3],
+          rows: months.map((m) => [
+            longMonth(m.month),
+            fullMoney(m.incomeMinor, currency),
+            fullMoney(m.spendingMinor, currency),
+            fullMoney(m.netMinor, currency),
+          ]),
+        }
+      }
+    >
+      {isPending || !months ? (
+        <ChartSkeleton />
+      ) : (
+        <ColumnChart
+          data={months}
+          series={[SERIES.income, SERIES.spending]}
+          currency={currency}
+          footer={(m) =>
+            `Net ${m.netMinor >= 0 ? "+" : "−"}${fullMoney(Math.abs(m.netMinor), currency)}`
+          }
+        />
+      )}
+    </ChartCard>
+  );
+}
+
+// ─── Spending by category: ranked bars with drill-down ───────────────────────
+
+export function CategoryWidget({
+  householdId,
+  range,
+  currency,
+  handle,
+}: {
+  householdId: string;
+  range: Range;
+  currency: string;
+  handle: ReactNode;
+}) {
+  const [parent, setParent] = useState<{ id: string; name: string } | null>(null);
+  const report = useSpendingByCategory(householdId, range, parent?.id);
+  const categories = useCategories(householdId);
+  const hasChildren = (id: string) => categories.data?.some((c) => c.parentId === id) ?? false;
+
+  const items: BarListItem[] =
+    report.data?.categories.map((c) => ({
+      id: c.categoryId,
+      label: parent && c.categoryId === parent.id ? `${c.name} (general)` : c.name,
+      // Subcategories usually have no icon of their own: inherit the parent's.
+      icon: c.icon ?? categories.data?.find((p) => p.id === parent?.id)?.icon ?? null,
+      valueMinor: c.spendingMinor,
+      share: c.share,
+      drillable: !parent && hasChildren(c.categoryId),
+    })) ?? [];
+
+  return (
+    <ChartCard
+      title={
+        parent ? (
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setParent(null)}
+              className="-ml-1 rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Back to all categories"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            {parent.name}
+          </span>
+        ) : (
+          "Spending by category"
+        )
+      }
+      subtitle={
+        report.data
+          ? `${fullMoney(report.data.totalMinor, currency)} total${parent ? "" : " · select a category to break it down"}`
+          : " "
+      }
+      dragHandle={handle}
+      pending={report.isPlaceholderData}
+      actions={
+        parent && (
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/app/${householdId}/transactions?category=${parent.id}`}>
+              Transactions <ArrowRight />
+            </Link>
+          </Button>
+        )
+      }
+      table={
+        report.data && {
+          columns: ["Category", "Spent", "Share"],
+          numeric: [1, 2],
+          rows: items.map((i) => [
+            i.label,
+            fullMoney(i.valueMinor, currency),
+            `${Math.round(i.share * 100)}%`,
+          ]),
+        }
+      }
+    >
+      {report.isPending ? (
+        <div className="space-y-3">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-6" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          No spending in this period.
+        </p>
+      ) : (
+        <BarList
+          items={items}
+          currency={currency}
+          onSelect={(item) => {
+            if (item.drillable) setParent({ id: item.id, name: item.label });
+          }}
+        />
+      )}
+    </ChartCard>
+  );
+}
+
+// ─── Net worth trend: single-series area ─────────────────────────────────────
+
+export function NetWorthWidget({
+  householdId,
+  range,
+  currency,
+  handle,
+}: {
+  householdId: string;
+  range: Range;
+  currency: string;
+  handle: ReactNode;
+}) {
+  const { data, isPending, isPlaceholderData } = useNetWorth(householdId, range);
+  const points = data?.points;
+  const change =
+    points && points.length > 1 ? points.at(-1)!.balanceMinor - points[0]!.balanceMinor : 0;
+  return (
+    <ChartCard
+      // One series: no legend box — the title already names what's plotted.
+      title="Net worth"
+      subtitle={
+        points
+          ? `${change >= 0 ? "Up" : "Down"} ${fullMoney(Math.abs(change), currency)} since ${longMonth(points[0]!.month)}`
+          : " "
+      }
+      dragHandle={handle}
+      pending={isPlaceholderData}
+      table={
+        points && {
+          columns: ["Month end", "Net worth"],
+          numeric: [1],
+          rows: points.map((p) => [longMonth(p.month), fullMoney(p.balanceMinor, currency)]),
+        }
+      }
+    >
+      {isPending || !points ? (
+        <ChartSkeleton />
+      ) : (
+        <LineChart
+          data={points}
+          xKey="month"
+          xLabel={(p, i) =>
+            points.length <= 6 || i % 2 === points.length % 2 ? shortMonth(p.month) : null
+          }
+          xTitle={(p) => `End of ${longMonth(p.month)}`}
+          // A LINE, not an area: the axis doesn't start at zero (a zero baseline would
+          // flatten the trend), and a shaded area implies volume down to the axis.
+          series={[
+            { key: "balanceMinor", label: "Net worth", color: "var(--chart-1)", emphasis: true },
+          ]}
+          currency={currency}
+          endLabel={(v) => shortMoney(v, currency)}
+        />
+      )}
+    </ChartCard>
+  );
+}
+
+// ─── Spending pace: emphasis (this month) vs context (last month) ───────────
+
+export function SpendingPaceCard({
+  days,
+  currency,
+  pending,
+}: {
+  days?: Array<{ date: string; incomeMinor: number; spendingMinor: number }>;
+  currency: string;
+  pending: boolean;
+}) {
+  const pace = days ? spendingPace(days) : undefined;
+  const today = pace?.filter((p) => p.thisMonth !== null).at(-1);
+  const diff = today && today.lastMonth !== null ? today.thisMonth! - today.lastMonth : null;
+  const series = [
+    // Emphasis form: the story is THIS month (accent); last month is grey context.
+    { key: "lastMonth", label: "Last month", color: "var(--chart-muted)" },
+    { key: "thisMonth", label: "This month", color: "var(--chart-1)", emphasis: true },
+  ];
+  return (
+    <ChartCard
+      title="Spending pace"
+      subtitle={
+        today && diff !== null
+          ? `${fullMoney(today.thisMonth!, currency)} so far — ${fullMoney(Math.abs(diff), currency)} ${diff <= 0 ? "less" : "more"} than this time last month`
+          : " "
+      }
+      legend={<Legend items={series.map((s) => ({ ...s, mark: "line" as const }))} />}
+      table={
+        pace && {
+          columns: ["Day", "This month", "Last month"],
+          numeric: [1, 2],
+          rows: pace.map((p) => [
+            p.day,
+            p.thisMonth === null ? "—" : fullMoney(p.thisMonth, currency),
+            p.lastMonth === null ? "—" : fullMoney(p.lastMonth, currency),
+          ]),
+        }
+      }
+    >
+      {pending || !pace ? (
+        <ChartSkeleton />
+      ) : (
+        <LineChart
+          data={pace}
+          xKey="day"
+          xLabel={(p) => ([1, 8, 15, 22, 29].includes(p.day) ? String(p.day) : null)}
+          xTitle={(p) => `Day ${p.day}`}
+          series={series}
+          currency={currency}
+          includeZero
+          endLabel={(v) => shortMoney(v, currency)}
+        />
+      )}
+    </ChartCard>
+  );
+}
+
+// ─── Lists ───────────────────────────────────────────────────────────────────
+
+export function AccountsWidget({
+  householdId,
+  handle,
+}: {
+  householdId: string;
+  handle: ReactNode;
+}) {
+  const { data: accounts } = useAccounts(householdId);
+  return (
+    <ChartCard
+      title="Accounts"
+      dragHandle={handle}
+      actions={
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/app/${householdId}/accounts`}>
+            Manage <ArrowRight />
+          </Link>
+        </Button>
+      }
+    >
+      <ul className="-mx-2">
+        {!accounts
+          ? [0, 1, 2, 3].map((i) => <Skeleton key={i} className="mx-2 my-3 h-9" />)
+          : accounts.map((account) => {
+              const Icon = accountIcons[account.type];
+              return (
+                <li key={account.id} className="flex items-center gap-3 rounded-xl px-2 py-2.5">
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                    <Icon className="size-4" />
+                  </span>
+                  <span className="flex-1 truncate text-sm font-medium">{account.name}</span>
+                  <AnimatedMoney
+                    value={account.balanceMinor}
+                    currency={account.currency}
+                    className="text-sm font-medium"
+                  />
+                </li>
+              );
+            })}
+      </ul>
+    </ChartCard>
+  );
+}
+
+export function RecentActivityWidget({
+  householdId,
+  handle,
+}: {
+  householdId: string;
+  handle: ReactNode;
+}) {
+  const recent = useRecentTransactions(householdId, 8);
+  const categories = useCategories(householdId);
+  const accounts = useAccounts(householdId);
+  return (
+    <ChartCard
+      title="Recent activity"
+      dragHandle={handle}
+      actions={
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/app/${householdId}/transactions`}>
+            View all <ArrowRight />
+          </Link>
+        </Button>
+      }
+    >
+      <div className="-mx-5 -mb-2">
+        <TransactionList
+          transactions={recent.data?.data}
+          categories={categories.data}
+          accounts={accounts.data}
+        />
+      </div>
+    </ChartCard>
+  );
+}

@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
-import { Overview } from "@/components/overview/overview";
+import { Suspense } from "react";
+import { Dashboard } from "@/components/dashboard/dashboard";
 
-export const metadata: Metadata = { title: "Overview" };
+export const metadata: Metadata = { title: "Dashboard" };
 
-export default async function OverviewPage({
+export default async function DashboardPage({
   params,
 }: {
   params: Promise<{ householdId: string }>;
 }) {
   const { householdId } = await params;
-  return <Overview householdId={householdId} />;
+  // The trends range lives in the URL (useSearchParams), which needs a Suspense boundary.
+  return (
+    <Suspense>
+      <Dashboard householdId={householdId} />
+    </Suspense>
+  );
 }

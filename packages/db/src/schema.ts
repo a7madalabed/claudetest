@@ -348,6 +348,28 @@ export const idempotencyKeys = pgTable(
   ],
 );
 
+// ─── Personal preferences ────────────────────────────────────────────────────
+
+/**
+ * Each member's own dashboard arrangement for each household (widget ids in
+ * display order). Personal, so even viewers may change it. Stored on the server
+ * so the layout follows you from laptop to phone.
+ */
+export const dashboardLayouts = pgTable(
+  "dashboard_layouts",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    widgets: jsonb("widgets").$type<string[]>().notNull(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ name: "dashboard_layouts_pkey", columns: [t.userId, t.householdId] })],
+);
+
 // ─── Inferred TypeScript types ───────────────────────────────────────────────
 // `$inferSelect` = a row read from the DB. `$inferInsert` = what you pass to insert
 // (columns with defaults become optional).
