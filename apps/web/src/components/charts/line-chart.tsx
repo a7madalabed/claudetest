@@ -21,6 +21,8 @@ export interface LineSeries {
 const PLOT_HEIGHT = 200;
 const AXIS_BAND = 28;
 const MARGIN = { top: 12, left: 56, right: 72 };
+/** The chart's full height — skeletons use it so loading never shifts the layout. */
+export const LINE_CHART_HEIGHT = PLOT_HEIGHT + MARGIN.top + AXIS_BAND;
 
 /**
  * Line / area chart with a CROSSHAIR: a hairline that snaps to the nearest x as
@@ -90,7 +92,15 @@ export function LineChart<T>({
     : [];
 
   return (
-    <div ref={ref} className="relative" onPointerLeave={() => setHovered(null)}>
+    <div
+      ref={ref}
+      className="relative"
+      // Reserve the chart's height BEFORE its width is measured: an empty 0-px
+      // box that later grows to 240 px pushed everything below it down
+      // (a measured layout shift of 0.106 on the dashboard — Stage 12).
+      style={{ height: LINE_CHART_HEIGHT }}
+      onPointerLeave={() => setHovered(null)}
+    >
       {width > 0 && data.length > 0 && (
         <svg
           width={width}

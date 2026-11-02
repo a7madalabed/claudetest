@@ -23,6 +23,8 @@ export function columnPath(x: number, y: number, width: number, height: number) 
 const PLOT_HEIGHT = 220;
 const AXIS_BAND = 28; // the x-axis labels are INSIDE the chart's height, so nothing gets clipped
 const MARGIN = { top: 8, left: 52 };
+/** The chart's full height — skeletons use it so loading never shifts the layout. */
+export const COLUMN_CHART_HEIGHT = PLOT_HEIGHT + MARGIN.top + AXIS_BAND;
 
 /**
  * Grouped columns: one group per month, one column per series (income, spending).
@@ -66,7 +68,15 @@ export function ColumnChart<T extends { month: string }>({
   const active = hovered !== null ? data[hovered] : undefined;
 
   return (
-    <div ref={ref} className="relative" onPointerLeave={() => setHovered(null)}>
+    <div
+      ref={ref}
+      className="relative"
+      // Reserve the chart's height BEFORE its width is measured: an empty 0-px
+      // box that later grows to 240 px pushed everything below it down
+      // (a measured layout shift of 0.106 on the dashboard — Stage 12).
+      style={{ height: COLUMN_CHART_HEIGHT }}
+      onPointerLeave={() => setHovered(null)}
+    >
       {width > 0 && (
         <svg
           width={width}

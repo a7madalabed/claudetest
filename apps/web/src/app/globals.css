@@ -185,6 +185,15 @@
   --animate-sheet-in-right: sheet-in-right 320ms var(--ease-out-expo);
   --animate-sheet-out-right: sheet-out-right 200ms ease-in;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  /* Page entrance in CSS (Stage 12): it starts as soon as the HTML arrives, without waiting for JavaScript. */
+  --animate-page-in: page-in 300ms var(--ease-out-quint) both;
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
 
   @keyframes rise {
     from {

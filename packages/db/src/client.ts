@@ -35,6 +35,15 @@ export function createDb({
     statement_timeout: statementTimeoutMs,
     connectionTimeoutMillis: 5_000, // give up waiting for a free connection after 5 s
     idleTimeoutMillis: 30_000, // close connections idle for 30 s
+    /*
+     * JIT OFF (Stage 12). Postgres can compile a query to machine code when it
+     * ESTIMATES the query is expensive. For our short web-request queries the
+     * estimate was badly wrong (it assumed generate_series returns 1,000 rows),
+     * so it spent ~300 ms compiling queries that run in 0.3–27 ms. JIT helps
+     * long analytical queries; an OLTP app is better off without it.
+     * Set per connection, so it works on managed databases too.
+     */
+    options: "-c jit=off",
   });
 
   const db: Database = drizzle({ client: pool, schema });

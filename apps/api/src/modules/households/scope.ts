@@ -1,14 +1,29 @@
-import { and, eq, householdMembers, households } from "@ledgerly/db";
+import {
+  and,
+  eq,
+  householdDataVersions,
+  householdMembers,
+  households,
+  sql,
+  type Database,
+} from "@ledgerly/db";
 import { IdSchema, type HouseholdRole } from "@ledgerly/shared";
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { defaultRequiredRole, hasAtLeastRole } from "../../lib/authorization.js";
 import { forbidden, notFound } from "../../lib/errors.js";
+import { preparedFor } from "../../lib/prepared.js";
 
 declare module "fastify" {
   interface FastifyRequest {
     /** The household this request is scoped to, and the caller's role in it. */
-    household?: { id: string; role: HouseholdRole; baseCurrency: string };
+    household?: {
+      id: string;
+      role: HouseholdRole;
+      baseCurrency: string;
+      /** Bumped by triggers on every data change: the response cache's key (Stage 12). */
+      dataVersion: number;
+    };
   }
   interface FastifyContextConfig {
     /** Override the minimum role for a route (default: viewer for GET, editor otherwise). */
@@ -29,6 +44,31 @@ declare module "fastify" {
  * Putting authorization in one hook means a new route is protected by default.
  * Forgetting a check on one endpoint is how most real-world data leaks happen.
  */
+/** Runs on EVERY household request, so it's a prepared statement (Stage 12). */
+const membershipStatement = preparedFor((db: Database) =>
+  db
+    .select({
+      role: householdMembers.role,
+      baseCurrency: households.baseCurrency,
+      // Same query, no extra round-trip: the version rides along with the membership check.
+      dataVersion: householdDataVersions.version,
+    })
+    .from(householdMembers)
+    .innerJoin(households, eq(households.id, householdMembers.householdId))
+    .leftJoin(
+      householdDataVersions,
+      eq(householdDataVersions.householdId, householdMembers.householdId),
+    )
+    .where(
+      and(
+        eq(householdMembers.householdId, sql.placeholder("householdId")),
+        eq(householdMembers.userId, sql.placeholder("userId")),
+      ),
+    )
+    .limit(1)
+    .prepare("household_membership"),
+);
+
 const scope: FastifyPluginAsync = async (app) => {
   app.decorateRequest("household", undefined);
 
@@ -38,17 +78,10 @@ const scope: FastifyPluginAsync = async (app) => {
     const { householdId } = request.params as { householdId?: string };
     if (!IdSchema.safeParse(householdId).success) throw notFound("Household");
 
-    const [membership] = await app.db
-      .select({ role: householdMembers.role, baseCurrency: households.baseCurrency })
-      .from(householdMembers)
-      .innerJoin(households, eq(households.id, householdMembers.householdId))
-      .where(
-        and(
-          eq(householdMembers.householdId, householdId!),
-          eq(householdMembers.userId, request.user!.id),
-        ),
-      )
-      .limit(1);
+    const [membership] = await membershipStatement(app.db).execute({
+      householdId: householdId!,
+      userId: request.user!.id,
+    });
     if (!membership) throw notFound("Household");
 
     const required = request.routeOptions.config.minRole ?? defaultRequiredRole(request.method);
@@ -62,6 +95,7 @@ const scope: FastifyPluginAsync = async (app) => {
       id: householdId!,
       role: membership.role,
       baseCurrency: membership.baseCurrency,
+      dataVersion: membership.dataVersion ?? 0,
     };
   });
 };

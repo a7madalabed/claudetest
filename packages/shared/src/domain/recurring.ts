@@ -110,7 +110,11 @@ export function detectRecurring(transactions: RecurringInput[], today: string): 
   const groups = new Map<string, RecurringInput[]>();
   for (const t of transactions) {
     const key = `${normaliseDescription(t.description)}|${t.amountMinor < 0 ? "out" : "in"}`;
-    groups.set(key, [...(groups.get(key) ?? []), t]);
+    // push, not [...group, t]: copying the array on every row made grouping
+    // quadratic — 13,000 rows took 38 ms of CPU on the API's single thread (Stage 12).
+    const group = groups.get(key);
+    if (group) group.push(t);
+    else groups.set(key, [t]);
   }
 
   const series: RecurringSeries[] = [];

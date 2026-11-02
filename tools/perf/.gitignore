@@ -1,0 +1,3 @@
+# Raw run outputs are machine-specific; the summary lives in the Stage 12 doc.
+results/*.json
+!results/.gitkeep

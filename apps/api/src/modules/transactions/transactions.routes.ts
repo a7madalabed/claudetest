@@ -34,6 +34,7 @@ export const transactionRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/transactions",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "List transactions, newest first (keyset-paginated)",
@@ -73,6 +74,7 @@ export const transactionRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/transactions/summary",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Count and totals for the same filters as the list",

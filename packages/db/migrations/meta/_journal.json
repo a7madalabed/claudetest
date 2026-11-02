@@ -78,6 +78,20 @@
       "when": 1793619295075,
       "tag": "0010_realtime_notify_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793623414608,
+      "tag": "0011_household_data_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793623415652,
+      "tag": "0012_household_version_triggers",
+      "breakpoints": true
     }
   ]
 }

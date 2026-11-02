@@ -756,6 +756,21 @@ export const notifications = pgTable(
   ],
 );
 
+// ─── Cache versions ──────────────────────────────────────────────────────────
+
+/**
+ * A counter per household, bumped (by triggers, migration 0012) whenever its
+ * financial data changes. The API caches computed responses under
+ * "household + version"; any change makes old entries unreachable — on every
+ * API instance at once, with no "delete from cache" step that could be missed.
+ */
+export const householdDataVersions = pgTable("household_data_versions", {
+  householdId: uuid("household_id")
+    .primaryKey()
+    .references(() => households.id, { onDelete: "cascade" }),
+  version: bigint("version", { mode: "number" }).notNull().default(1),
+});
+
 // ─── Inferred TypeScript types ───────────────────────────────────────────────
 // `$inferSelect` = a row read from the DB. `$inferInsert` = what you pass to insert
 // (columns with defaults become optional).

@@ -1,13 +1,16 @@
 "use client";
 
-import { motion } from "motion/react";
 import type { ReactNode } from "react";
-import { ease } from "@/lib/motion";
 
 /**
  * Standard page frame: a consistent max width, padding and header, plus an
  * entrance transition so navigating between pages feels continuous instead of
  * "flashing" new content in.
+ *
+ * The entrance is a CSS animation, not a Motion one (Stage 12). A JavaScript
+ * animation starts at opacity 0 and can only fade in AFTER the page's JS has
+ * loaded and hydrated — on a mid-range phone the server-rendered content sat
+ * invisible for ~1.5–2 s. CSS animations start the moment the HTML arrives.
  */
 export function Page({
   title,
@@ -21,12 +24,7 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: ease.outQuint }}
-      className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 sm:py-10"
-    >
+    <div className="mx-auto w-full max-w-6xl animate-page-in px-4 py-6 sm:px-8 sm:py-10">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-headline">{title}</h1>
@@ -37,6 +35,6 @@ export function Page({
         {actions && <div className="flex gap-2">{actions}</div>}
       </header>
       {children}
-    </motion.div>
+    </div>
   );
 }

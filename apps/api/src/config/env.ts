@@ -57,6 +57,8 @@ const EnvSchema = z
      * stay silent too long (often 60 s), and each beat re-checks the session.
      */
     REALTIME_HEARTBEAT_MS: z.coerce.number().int().min(100).max(60_000).default(25_000),
+    /** Response cache size (entries per API process; 0 disables it). ~5 KB each. */
+    RESPONSE_CACHE_MAX: z.coerce.number().int().min(0).max(1_000_000).default(5_000),
     /** How many jobs one worker process runs at the same time. */
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(4),
     /** Serve /docs and /openapi.json. */

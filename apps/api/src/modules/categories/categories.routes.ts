@@ -18,6 +18,7 @@ export const categoryRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/categories",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "List all categories (flat; build the tree from parentId)",

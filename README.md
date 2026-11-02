@@ -19,7 +19,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 9   | [Budgets & goals](./docs/stage-09-budgets-and-goals.md)                       | ✅ Done |
 | 10  | [Imports & background jobs](./docs/stage-10-imports-and-background-jobs.md)   | ✅ Done |
 | 11  | [Households & real-time](./docs/stage-11-households-and-real-time.md)         | ✅ Done |
-| 12  | Performance & scalability                                                     | ⏳      |
+| 12  | [Performance & scalability](./docs/stage-12-performance-and-scalability.md)   | ✅ Done |
 | 13  | Testing strategy                                                              | ⏳      |
 | 14  | Deployment & operations                                                       | ⏳      |
 
@@ -33,6 +33,7 @@ packages/
   shared/     Code used by both: Zod schemas, types, money helpers
   db/         PostgreSQL schema, migrations, queries and seed data (Drizzle ORM)
 docker/       Config for local infrastructure (docker-compose.yml)
+tools/perf/   Performance tooling: big dataset, load tests, Web Vitals (Stage 12)
 docs/         One document per stage
 ```
 

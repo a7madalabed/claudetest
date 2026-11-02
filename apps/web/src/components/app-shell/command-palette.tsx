@@ -17,7 +17,7 @@ import {
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Kbd } from "@/components/ui/kbd";
 import { useMe } from "@/lib/query/hooks";
 import { useCurrentHousehold } from "./household-context";
@@ -41,17 +41,6 @@ export function CommandPalette({
   const { data: me } = useMe();
   const household = useCurrentHousehold();
   const signOut = useSignOut();
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        onOpenChange(!open);
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onOpenChange]);
 
   const run = (action: () => void) => () => {
     onOpenChange(false);

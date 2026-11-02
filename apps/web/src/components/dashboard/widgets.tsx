@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { BarList, type BarListItem } from "@/components/charts/bar-list";
 import { ChartCard } from "@/components/charts/chart-card";
-import { ColumnChart } from "@/components/charts/column-chart";
+import { COLUMN_CHART_HEIGHT, ColumnChart } from "@/components/charts/column-chart";
 import {
   fullMoney,
   longMonth,
@@ -14,7 +14,7 @@ import {
   wholeMoney,
 } from "@/components/charts/format";
 import { Legend } from "@/components/charts/legend";
-import { LineChart } from "@/components/charts/line-chart";
+import { LINE_CHART_HEIGHT, LineChart } from "@/components/charts/line-chart";
 import { AnimatedMoney } from "@/components/money";
 import { accountIcons, TransactionList } from "@/components/overview/overview";
 import { BudgetBar } from "@/components/budgets/budget-bar";
@@ -35,7 +35,7 @@ const SERIES = {
   spending: { key: "spendingMinor", label: "Spending", color: "var(--chart-2)" },
 };
 
-function ChartSkeleton({ height = 248 }: { height?: number }) {
+function ChartSkeleton({ height }: { height: number }) {
   return <Skeleton className="w-full rounded-xl" style={{ height }} />;
 }
 
@@ -81,7 +81,7 @@ export function CashflowWidget({
       }
     >
       {isPending || !months ? (
-        <ChartSkeleton />
+        <ChartSkeleton height={COLUMN_CHART_HEIGHT} />
       ) : (
         <ColumnChart
           data={months}
@@ -232,7 +232,7 @@ export function NetWorthWidget({
       }
     >
       {isPending || !points ? (
-        <ChartSkeleton />
+        <ChartSkeleton height={LINE_CHART_HEIGHT} />
       ) : (
         <LineChart
           data={points}
@@ -295,7 +295,7 @@ export function SpendingPaceCard({
       }
     >
       {pending || !pace ? (
-        <ChartSkeleton />
+        <ChartSkeleton height={LINE_CHART_HEIGHT} />
       ) : (
         <LineChart
           data={pace}

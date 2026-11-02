@@ -1,7 +1,19 @@
-import { and, eq, gt, ne, sessions, sql, users, type DbExecutor, type Session } from "@ledgerly/db";
+import {
+  and,
+  eq,
+  gt,
+  ne,
+  sessions,
+  sql,
+  users,
+  type Database,
+  type DbExecutor,
+  type Session,
+} from "@ledgerly/db";
 import type { SessionDto } from "@ledgerly/shared";
 import { generateToken, sha256 } from "../../auth/tokens.js";
 import { notFound } from "../../lib/errors.js";
+import { preparedFor } from "../../lib/prepared.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A session that has passed the password step but not 2FA lives only briefly. */
@@ -37,9 +49,9 @@ export async function createSession(
   return { token, session: session! };
 }
 
-/** Looks up a session by its raw token, enforcing BOTH absolute and idle expiry. */
-export async function findSession(db: DbExecutor, token: string, idleDays: number) {
-  const [row] = await db
+/** Runs on EVERY authenticated request, so it's a prepared statement (Stage 12). */
+const findSessionStatement = preparedFor((db: Database) =>
+  db
     .select({
       session: sessions,
       user: {
@@ -53,12 +65,18 @@ export async function findSession(db: DbExecutor, token: string, idleDays: numbe
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(
       and(
-        eq(sessions.tokenHash, sha256(token)),
+        eq(sessions.tokenHash, sql.placeholder("tokenHash")),
         gt(sessions.expiresAt, sql`now()`),
-        gt(sessions.lastSeenAt, sql`now() - make_interval(days => ${idleDays})`),
+        gt(sessions.lastSeenAt, sql`now() - make_interval(days => ${sql.placeholder("idleDays")})`),
       ),
     )
-    .limit(1);
+    .limit(1)
+    .prepare("find_session"),
+);
+
+/** Looks up a session by its raw token, enforcing BOTH absolute and idle expiry. */
+export async function findSession(db: Database, token: string, idleDays: number) {
+  const [row] = await findSessionStatement(db).execute({ tokenHash: sha256(token), idleDays });
   return row;
 }
 

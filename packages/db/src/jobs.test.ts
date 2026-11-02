@@ -111,3 +111,28 @@ describe("duplicate guards", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("household data versions (the API's cache keys)", () => {
+  const version = async (householdId: string) =>
+    (
+      await db.execute<{ version: string }>(
+        sql`select version from household_data_versions where household_id = ${householdId}`,
+      )
+    ).rows[0]?.version;
+
+  it("bumps once per statement, whatever the number of rows", async () => {
+    const { householdId, tx } = await fixture();
+    const before = Number((await version(householdId)) ?? 0);
+    await db.insert(transactions).values(Array.from({ length: 500 }, () => tx("2026-01-02")));
+    expect(Number(await version(householdId))).toBe(before + 1);
+    await db.update(transactions).set({ amountMinor: -1 });
+    expect(Number(await version(householdId))).toBe(before + 2);
+  });
+
+  it("lets a household be deleted (the cascade must not bump a household that's gone)", async () => {
+    const { householdId, tx } = await fixture();
+    await db.insert(transactions).values(tx("2026-01-02"));
+    await db.delete(households).where(eq(households.id, householdId));
+    expect(await version(householdId)).toBeUndefined();
+  });
+});

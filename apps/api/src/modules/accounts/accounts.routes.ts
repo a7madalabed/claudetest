@@ -24,6 +24,7 @@ export const accountRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/accounts",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "List accounts with current balances",

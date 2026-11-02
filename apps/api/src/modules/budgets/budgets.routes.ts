@@ -20,6 +20,7 @@ export const budgetRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/budgets",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Every budget for one month: amount, rollover, spent, remaining, status",

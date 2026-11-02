@@ -21,6 +21,7 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/reports/cashflow",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Income, spending and net per month (transfers excluded)",
@@ -35,6 +36,7 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/reports/spending-by-category",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Spending per top-level category, or per subcategory with ?parentId=",
@@ -50,6 +52,7 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/reports/net-worth",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Net worth at the end of each month (household base currency)",
@@ -68,6 +71,7 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/reports/daily-cashflow",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Money in and out per day (month-to-date comparisons, spending pace)",
@@ -83,6 +87,7 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/reports/recurring",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Detected recurring bills and income, with the next expected date",

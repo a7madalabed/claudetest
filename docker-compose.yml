@@ -6,6 +6,15 @@ services:
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
+    # Stage 12: record per-query statistics (see tools/perf and the Stage 12 doc).
+    command:
+      [
+        "postgres",
+        "-c",
+        "shared_preload_libraries=pg_stat_statements",
+        "-c",
+        "pg_stat_statements.track=top",
+      ]
     environment:
       POSTGRES_USER: ledgerly
       POSTGRES_PASSWORD: ledgerly # local development only — never reuse in production

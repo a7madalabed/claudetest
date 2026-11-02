@@ -19,6 +19,7 @@ export const goalRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     "/goals",
     {
+      config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
         summary: "Savings goals with progress and a projection from the account's recent pace",

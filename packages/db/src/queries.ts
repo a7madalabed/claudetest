@@ -159,10 +159,15 @@ export async function getNetWorthSeries(
       from ${accounts}
       where ${accounts.householdId} = ${householdId} and ${accounts.currency} = ${range.currency}
     ),
-    flows as (
+    -- MATERIALIZED (Stage 12): computed ONCE. Without it, Postgres inlines this
+    -- CTE into the per-month subquery below and re-aggregates the household's
+    -- whole history once per month — 12× the work for a 12-month chart.
+    flows as materialized (
       select date_trunc('month', t.occurred_on)::date as month, sum(t.amount_minor) as net
       from ${transactions} as t
-      join ${accounts} as a on a.id = t.account_id
+      -- household_id on BOTH sides lets the accounts lookup use an index
+      -- (it used to read every account of every household).
+      join ${accounts} as a on a.id = t.account_id and a.household_id = t.household_id
       where t.household_id = ${householdId} and a.currency = ${range.currency} and t.occurred_on < ${range.to}::date
       group by 1
     )

@@ -33,6 +33,7 @@ import { csrfPlugin } from "./plugins/csrf.js";
 import { databasePlugin } from "./plugins/database.js";
 import { errorHandlerPlugin } from "./plugins/error-handler.js";
 import { openApiPlugin } from "./plugins/openapi.js";
+import { responseCachePlugin } from "./plugins/response-cache.js";
 import { realtimePlugin } from "./realtime/events.plugin.js";
 import { healthRoutes } from "./routes/health.js";
 
@@ -122,6 +123,11 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
     });
   }
   await app.register(databasePlugin, { db: deps.db, close: deps.closeDb });
+  await app.register(responseCachePlugin, {
+    maxEntries: env.RESPONSE_CACHE_MAX,
+    // A safety net only: versions already make stale entries unreachable.
+    ttlMs: 10 * 60_000,
+  });
   await app.register(authPlugin, {
     cookieSecure: env.COOKIE_SECURE,
     idleDays: env.SESSION_IDLE_DAYS,

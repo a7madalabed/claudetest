@@ -1,19 +1,27 @@
 "use client";
 
 import { Menu, Search } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "@/components/logo";
 import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useNotificationToasts, useOverBudgetCount } from "@/lib/use-alerts";
-import { CommandPalette } from "./command-palette";
 import { useCurrentHousehold } from "./household-context";
 import { HouseholdSwitcher } from "./household-switcher";
 import { LiveStatus } from "./live-status";
 import { NavList, householdNav, settingsNav } from "./nav";
 import { NotificationBell } from "./notification-bell";
 import { UserMenu } from "./user-menu";
+
+/**
+ * Loaded on demand (Stage 12): the command palette and its search library were
+ * ~28 KB of compressed JavaScript on EVERY page, for a feature most visits never open.
+ */
+const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette), {
+  ssr: false,
+});
 
 function SidebarContents({
   onNavigate,
@@ -71,6 +79,25 @@ function SidebarContents({
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // The palette's code (cmdk and friends) is only downloaded the first time it's opened.
+  const [paletteWanted, setPaletteWanted] = useState(false);
+  const openPalette = (open: boolean) => {
+    if (open) setPaletteWanted(true);
+    setPaletteOpen(open);
+  };
+
+  // ⌘K / Ctrl+K lives HERE, not in the palette: the palette may not be loaded yet.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setPaletteWanted(true);
+        setPaletteOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   // Called ONCE here (not in the sidebar, which renders twice: desktop + mobile menu).
   const household = useCurrentHousehold();
   const overBudget = useOverBudgetCount(household?.id);
@@ -86,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
 
       <aside className="sticky top-0 hidden h-dvh border-r border-border bg-muted/40 lg:block">
-        <SidebarContents overBudget={overBudget} onOpenPalette={() => setPaletteOpen(true)} />
+        <SidebarContents overBudget={overBudget} onOpenPalette={() => openPalette(true)} />
       </aside>
 
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md lg:hidden">
@@ -104,7 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               onNavigate={() => setMobileOpen(false)}
               onOpenPalette={() => {
                 setMobileOpen(false);
-                setPaletteOpen(true);
+                openPalette(true);
               }}
             />
           </SheetContent>
@@ -114,7 +141,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NotificationBell />
           <button
             type="button"
-            onClick={() => setPaletteOpen(true)}
+            onClick={() => openPalette(true)}
             className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Search"
           >
@@ -127,7 +154,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      {paletteWanted && <CommandPalette open={paletteOpen} onOpenChange={openPalette} />}
     </div>
   );
 }
