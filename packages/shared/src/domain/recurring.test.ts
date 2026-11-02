@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { detectRecurring, normaliseDescription, type RecurringInput } from "./recurring.js";
+import {
+  detectRecurring,
+  nextRecurringDate,
+  normaliseDescription,
+  type RecurringInput,
+} from "./recurring.js";
 
 const tx = (date: string, description: string, amountMinor: number): RecurringInput => ({
   date,
@@ -96,5 +101,33 @@ describe("detectRecurring", () => {
       ["Veg box", "2026-06-15"],
       ["Phone", "2026-06-20"],
     ]);
+  });
+});
+
+describe("nextRecurringDate", () => {
+  it("steps weekly", () => {
+    expect(nextRecurringDate({ cadence: "weekly" }, "2026-12-29")).toBe("2027-01-05");
+  });
+
+  it("keeps a monthly rule on its day, clamping short months", () => {
+    const rule = { cadence: "monthly" as const, anchorDay: 31 };
+    expect(nextRecurringDate(rule, "2026-01-31")).toBe("2026-02-28");
+    expect(nextRecurringDate(rule, "2026-02-28")).toBe("2026-03-31");
+    expect(nextRecurringDate(rule, "2026-03-10")).toBe("2026-03-31");
+  });
+
+  it("alternates between the two days of a twice-monthly rule", () => {
+    const rule = { cadence: "twice_monthly" as const, anchorDay: 1, secondDay: 15 };
+    expect(nextRecurringDate(rule, "2026-11-01")).toBe("2026-11-15");
+    expect(nextRecurringDate(rule, "2026-11-15")).toBe("2026-12-01");
+    expect(nextRecurringDate(rule, "2026-12-20")).toBe("2027-01-01");
+  });
+
+  it("predicts twice-monthly salary on the real days, not every 15 days", () => {
+    const salary = ["2026-09-01", "2026-09-15", "2026-10-01", "2026-10-15", "2026-11-01"].map((d) =>
+      tx(d, "Payroll", 250_000),
+    );
+    const [series] = detectRecurring(salary, "2026-11-02");
+    expect(series).toMatchObject({ daysOfMonth: [1, 15], nextDate: "2026-11-15" });
   });
 });

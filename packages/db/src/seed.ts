@@ -124,7 +124,7 @@ export async function seedDemoData(
       .returning();
     const [household] = await tx
       .insert(households)
-      .values({ name: "Alex's Household", baseCurrency: "USD" })
+      .values({ name: "Alex's Household", baseCurrency: "USD", timeZone: "America/Los_Angeles" })
       .returning();
     if (!user || !household) throw new Error("Seeding failed to create the demo user");
     const householdId = household.id;

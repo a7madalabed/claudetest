@@ -20,6 +20,7 @@ export async function getMe(db: DbExecutor, userId: string): Promise<MeDto> {
       id: households.id,
       name: households.name,
       baseCurrency: households.baseCurrency,
+      timeZone: households.timeZone,
       role: householdMembers.role,
       createdAt: households.createdAt,
     })

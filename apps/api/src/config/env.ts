@@ -50,6 +50,10 @@ const EnvSchema = z
     SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
     /** Idle timeout: a session unused for this long expires early. */
     SESSION_IDLE_DAYS: z.coerce.number().int().min(1).max(90).default(14),
+    /** Where the web app lives — for links in emails ("open your budgets"). */
+    APP_URL: z.url().default("http://localhost:3000"),
+    /** How many jobs one worker process runs at the same time. */
+    WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(4),
     /** Serve /docs and /openapi.json. */
     API_DOCS: booleanString.default(true),
     CORS_ORIGINS: z

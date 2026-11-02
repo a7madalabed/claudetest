@@ -5,6 +5,7 @@ import {
   Goal,
   LayoutDashboard,
   ChartPie,
+  FileUp,
   Shield,
   Wallet,
   type LucideIcon,
@@ -42,6 +43,7 @@ export function householdNav(householdId: string, overBudget = 0): NavItem[] {
     },
     { href: `/app/${householdId}/goals`, label: "Goals", icon: Goal },
     { href: `/app/${householdId}/accounts`, label: "Accounts", icon: Wallet },
+    { href: `/app/${householdId}/imports`, label: "Imports", icon: FileUp },
   ];
 }
 

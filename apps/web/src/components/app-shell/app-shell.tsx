@@ -6,11 +6,12 @@ import { useState, type ReactNode } from "react";
 import { Logo } from "@/components/logo";
 import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { useBudgetAlerts } from "@/lib/use-budget-alerts";
+import { useNotificationToasts, useOverBudgetCount } from "@/lib/use-alerts";
 import { CommandPalette } from "./command-palette";
 import { useCurrentHousehold } from "./household-context";
 import { HouseholdSwitcher } from "./household-switcher";
 import { NavList, householdNav, settingsNav } from "./nav";
+import { NotificationBell } from "./notification-bell";
 import { UserMenu } from "./user-menu";
 
 function SidebarContents({
@@ -25,13 +26,13 @@ function SidebarContents({
   const household = useCurrentHousehold();
   return (
     <div className="flex h-full flex-col gap-5 p-4">
-      <Link
-        href={household ? `/app/${household.id}` : "/app"}
-        onClick={onNavigate}
-        className="px-1.5 pt-1"
-      >
-        <Logo />
-      </Link>
+      <div className="flex items-center justify-between pl-1.5 pt-1">
+        <Link href={household ? `/app/${household.id}` : "/app"} onClick={onNavigate}>
+          <Logo />
+        </Link>
+        {/* The mobile menu has its own bell in the top bar. */}
+        {!onNavigate && <NotificationBell />}
+      </div>
       <HouseholdSwitcher />
       <button
         type="button"
@@ -70,7 +71,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Called ONCE here (not in the sidebar, which renders twice: desktop + mobile menu).
   const household = useCurrentHousehold();
-  const overBudget = useBudgetAlerts(household?.id, household?.baseCurrency ?? "USD");
+  const overBudget = useOverBudgetCount(household?.id);
+  useNotificationToasts();
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[17rem_minmax(0,1fr)]">
@@ -106,14 +108,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           </SheetContent>
         </Sheet>
         <Logo />
-        <button
-          type="button"
-          onClick={() => setPaletteOpen(true)}
-          className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Search"
-        >
-          <Search className="size-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Search"
+          >
+            <Search className="size-5" />
+          </button>
+        </div>
       </header>
 
       <main id="main" className="min-w-0">

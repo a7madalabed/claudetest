@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CurrencyCodeSchema, IdSchema, TimestampSchema } from "./common.js";
+import { CurrencyCodeSchema, IdSchema, TimeZoneSchema, TimestampSchema } from "./common.js";
 
 export const HouseholdRoleSchema = z.enum(["owner", "editor", "viewer"]);
 export type HouseholdRole = z.infer<typeof HouseholdRoleSchema>;
@@ -9,6 +9,9 @@ export const HouseholdSchema = z
     id: IdSchema,
     name: z.string(),
     baseCurrency: CurrencyCodeSchema,
+    timeZone: TimeZoneSchema.meta({
+      description: "Used by background jobs to know the household's 'today'",
+    }),
     role: HouseholdRoleSchema.meta({ description: "YOUR role in this household" }),
     createdAt: TimestampSchema,
   })

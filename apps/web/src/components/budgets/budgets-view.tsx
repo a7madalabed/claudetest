@@ -19,7 +19,8 @@ import { spring } from "@/lib/motion";
 import { useHydrated } from "@/lib/use-hydrated";
 import { useNewParam } from "@/lib/use-new-param";
 import { useBudgets } from "@/lib/query/budgets";
-import { useCategories } from "@/lib/query/hooks";
+import { useAccounts, useCategories } from "@/lib/query/hooks";
+import { AutomationCard } from "./automation-card";
 import { BudgetBar } from "./budget-bar";
 import { BudgetDialog } from "./budget-dialog";
 import { StatusLabel } from "./status";
@@ -51,6 +52,7 @@ export function BudgetsView({ householdId }: { householdId: string }) {
   const data = hydrated ? query.data : undefined;
   const isPending = !hydrated || query.isPending;
   const categories = useCategories(householdId);
+  const accounts = useAccounts(householdId);
   const [dialog, setDialog] = useState<DialogState>({ open: false });
   useNewParam(() => setDialog({ open: true, budget: null }));
   const elapsed = monthElapsed(month);
@@ -224,7 +226,9 @@ export function BudgetsView({ householdId }: { householdId: string }) {
             householdId={householdId}
             categories={categories.data}
             currency={currency}
+            canEdit={canEdit}
           />
+          <AutomationCard householdId={householdId} accounts={accounts.data} canEdit={canEdit} />
         </aside>
       </div>
 

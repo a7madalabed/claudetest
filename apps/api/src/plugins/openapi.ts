@@ -32,6 +32,12 @@ export const openApiPlugin = fp(
           { name: "Transactions", description: "Money in, money out, and transfers" },
           { name: "Budgets", description: "Monthly category budgets with rollover" },
           { name: "Goals", description: "Savings goals with projections" },
+          { name: "Imports", description: "Bank CSV imports, processed in the background" },
+          {
+            name: "Recurring rules",
+            description: "Transactions created automatically on a schedule",
+          },
+          { name: "Notifications", description: "Alerts for the signed-in user" },
           { name: "Reports", description: "Aggregated views for dashboards" },
           { name: "System", description: "Health checks" },
         ],

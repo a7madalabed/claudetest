@@ -30,6 +30,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   unique,
@@ -71,6 +72,19 @@ export const accountType = pgEnum("account_type", [
 ]);
 
 export const categoryKind = pgEnum("category_kind", ["income", "expense"]);
+
+export const jobStatus = pgEnum("job_status", ["queued", "running", "succeeded", "failed"]);
+
+export const importStatus = pgEnum("import_status", [
+  "uploaded", // file stored and previewed; waiting for the user to confirm the column mapping
+  "queued", // confirmed; a background job will pick it up
+  "processing",
+  "completed",
+  "failed",
+  "reverted", // the user undid it: its transactions were deleted
+]);
+
+export const recurringCadence = pgEnum("recurring_cadence", ["weekly", "twice_monthly", "monthly"]);
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
@@ -160,6 +174,12 @@ export const households = pgTable(
     id: id(),
     name: text("name").notNull(),
     baseCurrency: currency("base_currency").notNull().default("USD"),
+    /**
+     * IANA time zone ("America/Los_Angeles"). Background jobs have no browser to
+     * ask what "today" is, so the household remembers its own calendar.
+     * Validated in the API with Intl (the database has no list of zones to check against).
+     */
+    timeZone: text("time_zone").notNull().default("UTC"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -254,6 +274,119 @@ export const categories = pgTable(
   ],
 );
 
+// ─── Imports (bank CSV files) ────────────────────────────────────────────────
+
+/**
+ * One uploaded CSV file and the state of its import. The file's text is kept
+ * only until the import finishes — bank statements are sensitive, and data we
+ * no longer need is data that can't leak ("data minimisation").
+ */
+export const imports = pgTable(
+  "imports",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    fileName: text("file_name").notNull(),
+    fileSize: integer("file_size").notNull(),
+    fileText: text("file_text"),
+    status: importStatus("status").notNull().default("uploaded"),
+    /** How the CSV's columns map to our fields (set when the user confirms). */
+    mapping: jsonb("mapping"),
+    totalRows: integer("total_rows").notNull().default(0),
+    processedRows: integer("processed_rows").notNull().default(0),
+    importedCount: integer("imported_count").notNull().default(0),
+    duplicateCount: integer("duplicate_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    /** The first few row-level problems, e.g. [{ row: 12, message: "Unreadable date" }]. */
+    errors: jsonb("errors").$type<Array<{ row: number; message: string }>>().notNull().default([]),
+    failureReason: text("failure_reason"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({
+      name: "imports_account_fkey",
+      columns: [t.accountId, t.householdId],
+      foreignColumns: [accounts.id, accounts.householdId],
+    }).onDelete("cascade"),
+    unique("imports_id_household_id_key").on(t.id, t.householdId),
+    index("imports_household_created_idx").on(t.householdId, t.createdAt),
+    check("imports_file_name_length", sql`char_length(${t.fileName}) between 1 and 255`),
+    check(
+      "imports_counts_not_negative",
+      sql`${t.totalRows} >= 0 and ${t.processedRows} >= 0 and ${t.importedCount} >= 0 and ${t.duplicateCount} >= 0 and ${t.errorCount} >= 0`,
+    ),
+  ],
+);
+
+// ─── Recurring rules ─────────────────────────────────────────────────────────
+
+/**
+ * "Every month on the 1st, record Rent: −$1,650 from Checking." A scheduled
+ * background job creates the transactions when they fall due.
+ */
+export const recurringRules = pgTable(
+  "recurring_rules",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").notNull(),
+    categoryId: uuid("category_id"),
+    description: text("description").notNull(),
+    amountMinor: money("amount_minor").notNull(),
+    cadence: recurringCadence("cadence").notNull(),
+    /** Day of month for monthly rules, the FIRST day for twice-monthly ones. */
+    anchorDay: smallint("anchor_day"),
+    /** The second day of month for twice-monthly rules (e.g. 1st and 15th). */
+    secondDay: smallint("second_day"),
+    /** The next date a transaction is due. The scheduler advances it. */
+    nextDate: date("next_date", { mode: "string" }).notNull(),
+    active: boolean("active").notNull().default(true),
+    /** The detected series this rule was created from (see detectRecurring), if any. */
+    seriesKey: text("series_key"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "recurring_rules_account_fkey",
+      columns: [t.accountId, t.householdId],
+      foreignColumns: [accounts.id, accounts.householdId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "recurring_rules_category_fkey",
+      columns: [t.categoryId, t.householdId],
+      foreignColumns: [categories.id, categories.householdId],
+    }),
+    // The scheduler's question, across ALL households: "which active rules are due?"
+    index("recurring_rules_due_idx")
+      .on(t.nextDate)
+      .where(sql`${t.active}`),
+    uniqueIndex("recurring_rules_household_series_key")
+      .on(t.householdId, t.seriesKey)
+      .where(sql`${t.seriesKey} is not null`),
+    check("recurring_rules_amount_not_zero", sql`${t.amountMinor} <> 0`),
+    check(
+      "recurring_rules_description_length",
+      sql`char_length(${t.description}) between 1 and 200`,
+    ),
+    check(
+      "recurring_rules_days",
+      sql`(${t.cadence} = 'weekly' and ${t.anchorDay} is null and ${t.secondDay} is null)
+       or (${t.cadence} = 'monthly' and ${t.anchorDay} between 1 and 31 and ${t.secondDay} is null)
+       or (${t.cadence} = 'twice_monthly' and ${t.anchorDay} between 1 and 31 and ${t.secondDay} between 1 and 31 and ${t.anchorDay} < ${t.secondDay})`,
+    ),
+  ],
+);
+
 // ─── Transactions ────────────────────────────────────────────────────────────
 
 export const transactions = pgTable(
@@ -278,6 +411,18 @@ export const transactions = pgTable(
      * exclude them.
      */
     transferId: uuid("transfer_id"),
+    /** Set on rows created by a CSV import (so the import can be undone). */
+    importId: uuid("import_id"),
+    /**
+     * A hash of (date, amount, description, occurrence) from the bank file. A
+     * UNIQUE index per account makes re-importing an overlapping file skip rows
+     * it has already seen — duplicates are prevented by the database itself.
+     */
+    importFingerprint: text("import_fingerprint"),
+    /** Set on rows created by a recurring rule. */
+    recurringRuleId: uuid("recurring_rule_id").references(() => recurringRules.id, {
+      onDelete: "set null",
+    }),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -317,6 +462,21 @@ export const transactions = pgTable(
     index("transactions_category_idx")
       .on(t.categoryId)
       .where(sql`${t.categoryId} is not null`),
+    foreignKey({
+      name: "transactions_import_fkey",
+      columns: [t.importId, t.householdId],
+      foreignColumns: [imports.id, imports.householdId],
+    }),
+    index("transactions_import_idx")
+      .on(t.importId)
+      .where(sql`${t.importId} is not null`),
+    uniqueIndex("transactions_account_import_fingerprint_key")
+      .on(t.accountId, t.importFingerprint)
+      .where(sql`${t.importFingerprint} is not null`),
+    // A rule creates AT MOST one transaction per due date — even if the job runs twice.
+    uniqueIndex("transactions_recurring_occurrence_key")
+      .on(t.recurringRuleId, t.occurredOn)
+      .where(sql`${t.recurringRuleId} is not null`),
   ],
 );
 
@@ -456,6 +616,107 @@ export const dashboardLayouts = pgTable(
   (t) => [primaryKey({ name: "dashboard_layouts_pkey", columns: [t.userId, t.householdId] })],
 );
 
+// ─── Background jobs ─────────────────────────────────────────────────────────
+
+/**
+ * A job queue, in Postgres. Workers claim jobs with `FOR UPDATE SKIP LOCKED`
+ * (see apps/api/src/jobs). Living in the same database as the data means a job
+ * can be enqueued in the SAME transaction as the change that needs it: either
+ * both happen or neither does — no "saved the import but lost its job".
+ */
+export const jobs = pgTable(
+  "jobs",
+  {
+    // SQL default too, so the database trigger in migration 0008 can insert jobs.
+    id: uuid("id")
+      .primaryKey()
+      .defaultRandom()
+      .$defaultFn(() => uuidv7()),
+    name: text("name").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    status: jobStatus("status").notNull().default("queued"),
+    /** Not before this moment: used for delays, retries with backoff and debouncing. */
+    runAt: timestamp("run_at", { withTimezone: true }).notNull().defaultNow(),
+    attempts: integer("attempts").notNull().default(0),
+    /** null = use the job type's default (see JobDefinition.maxAttempts). */
+    maxAttempts: integer("max_attempts"),
+    /** A running job's lease. If the worker dies, the lease expires and another worker retries it. */
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    lastError: text("last_error"),
+    /** At most ONE queued job per key: later enqueues with the same key are dropped (debouncing). */
+    singletonKey: text("singleton_key"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("jobs_ready_idx")
+      .on(t.runAt)
+      .where(sql`${t.status} = 'queued'`),
+    index("jobs_running_lease_idx")
+      .on(t.lockedUntil)
+      .where(sql`${t.status} = 'running'`),
+    index("jobs_finished_idx")
+      .on(t.finishedAt)
+      .where(sql`${t.status} in ('succeeded', 'failed')`),
+    uniqueIndex("jobs_singleton_key")
+      .on(t.singletonKey)
+      .where(sql`${t.status} = 'queued'`),
+    check(
+      "jobs_attempts",
+      sql`${t.attempts} >= 0 and (${t.maxAttempts} is null or ${t.maxAttempts} between 1 and 25)`,
+    ),
+  ],
+);
+
+/**
+ * Recurring schedules ("every 15 minutes, run recurring.run-due"). Several
+ * workers may be running; the one that atomically moves next_run_at forward
+ * wins the tick, so each tick enqueues exactly one job — no leader election needed.
+ */
+export const jobSchedules = pgTable("job_schedules", {
+  name: text("name").primaryKey(),
+  intervalSeconds: integer("interval_seconds").notNull(),
+  nextRunAt: timestamp("next_run_at", { withTimezone: true }).notNull(),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+});
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+/**
+ * In-app notifications, one row per recipient. `dedupe_key` + a unique index
+ * make "notify Alex that Groceries went over in November" happen EXACTLY once,
+ * however many times the evaluation job runs.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    /** In-app path to open, e.g. /app/<household>/budgets */
+    link: text("link"),
+    dedupeKey: text("dedupe_key").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("notifications_user_dedupe_key").on(t.userId, t.dedupeKey),
+    index("notifications_user_created_idx").on(t.userId, t.createdAt),
+    index("notifications_user_unread_idx")
+      .on(t.userId)
+      .where(sql`${t.readAt} is null`),
+  ],
+);
+
 // ─── Inferred TypeScript types ───────────────────────────────────────────────
 // `$inferSelect` = a row read from the DB. `$inferInsert` = what you pass to insert
 // (columns with defaults become optional).
@@ -475,3 +736,7 @@ export type Budget = typeof budgets.$inferSelect;
 export type BudgetAmount = typeof budgetAmounts.$inferSelect;
 export type Goal = typeof goals.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;
+export type Job = typeof jobs.$inferSelect;
+export type Import = typeof imports.$inferSelect;
+export type RecurringRule = typeof recurringRules.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;

@@ -95,7 +95,11 @@ export async function signup(tx: DbTransaction, input: SignupInput) {
 
   const [household] = await tx
     .insert(households)
-    .values({ name: `${input.displayName.split(" ")[0]}'s Household`, baseCurrency: "USD" })
+    .values({
+      name: `${input.displayName.split(" ")[0]}'s Household`,
+      baseCurrency: "USD",
+      timeZone: input.timeZone ?? "UTC",
+    })
     .returning({ id: households.id });
   await tx.insert(householdMembers).values({ householdId: household!.id, userId, role: "owner" });
 

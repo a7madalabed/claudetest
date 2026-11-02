@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IdSchema, TimestampSchema } from "./common.js";
+import { IdSchema, TimeZoneSchema, TimestampSchema } from "./common.js";
 import { MeSchema } from "./households.js";
 
 /**
@@ -30,6 +30,8 @@ export const SignupSchema = z
     email: EmailSchema,
     password: PasswordSchema,
     displayName: z.string().trim().min(1).max(100),
+    /** The browser's time zone, for the new household (scheduled jobs need it). */
+    timeZone: TimeZoneSchema.optional(),
   })
   .meta({ id: "Signup" });
 export type SignupInput = z.infer<typeof SignupSchema>;

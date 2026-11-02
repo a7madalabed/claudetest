@@ -50,6 +50,20 @@
       "when": 1793598968356,
       "tag": "0006_budgets_goals_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793601369138,
+      "tag": "0007_background_jobs_and_imports",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793601370265,
+      "tag": "0008_budget_evaluation_trigger",
+      "breakpoints": true
     }
   ]
 }

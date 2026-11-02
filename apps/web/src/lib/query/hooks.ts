@@ -118,7 +118,12 @@ export function useSignup() {
   return useMutation({
     ...inline,
     mutationFn: (input: SignupInput) =>
-      api("/v1/auth/signup", { method: "POST", body: input, schema: MeSchema }),
+      api("/v1/auth/signup", {
+        method: "POST",
+        // The browser knows the user's time zone; the new household adopts it.
+        body: { ...input, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+        schema: MeSchema,
+      }),
     onSuccess: (me) => queryClient.setQueryData(queryKeys.me, me),
   });
 }

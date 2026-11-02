@@ -1,8 +1,9 @@
 "use client";
 
 import type { TransactionDto } from "@ledgerly/shared";
-import { Plus, Receipt, SearchX, Tag, Trash2, X } from "lucide-react";
+import { FileUp, Plus, Receipt, SearchX, Tag, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -228,10 +229,17 @@ export function TransactionsView({ householdId }: { householdId: string }) {
         )
       }
       actions={
-        <Button onClick={openCreate}>
-          <Plus /> New transaction{" "}
-          <Kbd className="ml-1 border-white/20 bg-white/15 text-primary-foreground">N</Kbd>
-        </Button>
+        <>
+          <Button asChild variant="outline">
+            <Link href={`/app/${householdId}/imports`}>
+              <FileUp /> Import CSV
+            </Link>
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus /> New transaction{" "}
+            <Kbd className="ml-1 border-white/20 bg-white/15 text-primary-foreground">N</Kbd>
+          </Button>
+        </>
       }
     >
       <div className="sticky top-[57px] z-30 -mx-4 bg-background/85 px-4 py-3 backdrop-blur-md sm:-mx-8 sm:px-8 lg:top-0">

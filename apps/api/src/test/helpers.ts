@@ -8,9 +8,13 @@ import {
   type Database,
 } from "@ledgerly/db";
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from "fastify";
+import { pino } from "pino";
 import { afterAll, beforeAll, beforeEach } from "vitest";
 import { buildApp } from "../app.js";
 import { loadEnv } from "../config/env.js";
+import { jobDefinitions } from "../jobs/definitions.js";
+import { Worker } from "../jobs/worker.js";
+import { MemoryMailer } from "../lib/mailer.js";
 import { createSession } from "../modules/auth/sessions.service.js";
 import { API_TEST_DATABASE_URL } from "./database.js";
 
@@ -66,7 +70,7 @@ export function useTestApp(envOverrides: Record<string, string> = {}) {
 
   beforeEach(async () => {
     await database.db.execute(
-      sql`truncate table budget_amounts, budgets, goals, dashboard_layouts, recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users cascade`,
+      sql`truncate table jobs, job_schedules, notifications, imports, recurring_rules, budget_amounts, budgets, goals, dashboard_layouts, recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users cascade`,
     );
     const demo = await seedDemoData(database.db, { today: "2026-06-15", seed: 1 });
 
@@ -125,4 +129,20 @@ export function request(
     ...(user &&
       !token && { cookies: { [SESSION_COOKIE]: "not-a-real-session", ...options.cookies } }),
   });
+}
+
+/**
+ * Runs queued background jobs synchronously, the way the worker process would
+ * (including delayed ones, e.g. the debounced budget evaluation). Emails land
+ * in `mailer.sent` instead of being sent.
+ */
+export function jobRunner(db: Database) {
+  const mailer = new MemoryMailer();
+  const worker = new Worker({
+    db,
+    definitions: jobDefinitions({ appUrl: "http://localhost:3000" }),
+    mailer,
+    log: pino({ level: "silent" }),
+  });
+  return { mailer, run: () => worker.drain({ includeDelayed: true }) };
 }

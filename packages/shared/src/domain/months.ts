@@ -20,3 +20,17 @@ export function monthsBetween(from: YearMonth, to: YearMonth): YearMonth[] {
   const count = monthDiff(from, to);
   return count < 0 ? [] : Array.from({ length: count + 1 }, (_, i) => addMonths(from, i));
 }
+
+/**
+ * Today's date in a time zone ("2026-11-02"). Background jobs have no browser to
+ * ask, so they use the household's zone: at 11 pm in Los Angeles on Oct 31,
+ * UTC says November but the household is still in October.
+ */
+export function todayIn(timeZone: string, now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}

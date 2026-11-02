@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { amountForMonth, budgetStatus, computeBudgetMonth } from "./budgets.js";
-import { addMonths, monthDiff, monthsBetween } from "./months.js";
+import { addMonths, monthDiff, monthsBetween, todayIn } from "./months.js";
 
 describe("months", () => {
   it("adds and diffs across year boundaries", () => {
@@ -125,5 +125,14 @@ describe("computeBudgetMonth", () => {
     // Jan carry 4,000 → Feb available 24,000 − 13,000 = 11,000 carried into March.
     expect(march.amountMinor).toBe(20_000);
     expect(march.rolloverMinor).toBe(11_000);
+  });
+});
+
+describe("todayIn", () => {
+  it("uses the household's calendar, not UTC", () => {
+    const lateOctober31InLA = new Date("2026-11-01T06:30:00Z"); // 11:30 pm Oct 31 in Los Angeles
+    expect(todayIn("America/Los_Angeles", lateOctober31InLA)).toBe("2026-10-31");
+    expect(todayIn("UTC", lateOctober31InLA)).toBe("2026-11-01");
+    expect(todayIn("Asia/Tokyo", lateOctober31InLA)).toBe("2026-11-01");
   });
 });

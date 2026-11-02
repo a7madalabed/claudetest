@@ -2,6 +2,7 @@
 
 import { Command } from "cmdk";
 import {
+  FileUp,
   Goal,
   Home,
   LogOut,
@@ -106,6 +107,13 @@ export function CommandPalette({
                     onSelect={run(() => router.push(`/app/${household.id}/goals?new=1`))}
                   >
                     New savings goal
+                  </PaletteItem>
+                  <PaletteItem
+                    icon={FileUp}
+                    keywords={["import", "csv", "bank", "upload", "statement"]}
+                    onSelect={run(() => router.push(`/app/${household.id}/imports`))}
+                  >
+                    Import a bank file
                   </PaletteItem>
                 </Command.Group>
               )}

@@ -16,8 +16,11 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { budgetRoutes } from "./modules/budgets/budgets.routes.js";
 import { categoryRoutes } from "./modules/categories/categories.routes.js";
 import { goalRoutes } from "./modules/goals/goals.routes.js";
+import { importRoutes } from "./modules/imports/imports.routes.js";
 import { householdRoutes, meRoutes } from "./modules/households/households.routes.js";
 import { householdScope } from "./modules/households/scope.js";
+import { notificationRoutes } from "./modules/notifications/notifications.routes.js";
+import { recurringRoutes } from "./modules/recurring/recurring.routes.js";
 import { reportRoutes } from "./modules/reports/reports.routes.js";
 import { transactionRoutes } from "./modules/transactions/transactions.routes.js";
 import { authPlugin } from "./plugins/auth.js";
@@ -131,6 +134,7 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
         ttlDays: env.SESSION_TTL_DAYS,
       });
       await v1.register(meRoutes);
+      await v1.register(notificationRoutes);
       await v1.register(
         async (scoped) => {
           await scoped.register(householdScope);
@@ -141,6 +145,8 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
           await scoped.register(reportRoutes);
           await scoped.register(budgetRoutes);
           await scoped.register(goalRoutes);
+          await scoped.register(importRoutes);
+          await scoped.register(recurringRoutes);
         },
         { prefix: "/households/:householdId" },
       );

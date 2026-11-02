@@ -155,8 +155,10 @@ export const RecurringSeriesSchema = z
     occurrences: z.int(),
     lastDate: IsoDateSchema,
     nextDate: IsoDateSchema,
+    daysOfMonth: z.array(z.int().min(1).max(31)),
     accountId: IdSchema,
     categoryId: IdSchema.nullable(),
+    ruleId: IdSchema.nullable().meta({ description: "The rule automating this series, if any" }),
   })
   .meta({ id: "RecurringSeries" });
 export type RecurringSeriesDto = z.infer<typeof RecurringSeriesSchema>;

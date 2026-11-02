@@ -26,6 +26,20 @@ export const MinorUnitsSchema = z
 
 export const TimestampSchema = z.iso.datetime({ offset: true });
 
+/** An IANA time zone the runtime knows ("Europe/Paris"). Intl is the source of truth. */
+export const TimeZoneSchema = z
+  .string()
+  .max(64)
+  .refine((zone) => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: zone });
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Unknown time zone")
+  .meta({ description: "IANA time zone", example: "America/Los_Angeles" });
+
 /** Trims whitespace, then enforces length — "   " is not a valid name. */
 export const nameSchema = (max: number) => z.string().trim().min(1).max(max);
 

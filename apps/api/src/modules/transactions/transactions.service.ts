@@ -164,7 +164,7 @@ export async function getTransaction(db: DbExecutor, householdId: string, id: st
 
 // ─── Validation helpers (friendly 422s; the DB constraints remain the safety net) ─
 
-async function assertUsableAccount(
+export async function assertUsableAccount(
   db: DbExecutor,
   householdId: string,
   accountId: string,
@@ -181,7 +181,11 @@ async function assertUsableAccount(
   return account;
 }
 
-async function assertUsableCategory(db: DbExecutor, householdId: string, categoryId: string) {
+export async function assertUsableCategory(
+  db: DbExecutor,
+  householdId: string,
+  categoryId: string,
+) {
   const [category] = await db
     .select({ archivedAt: categories.archivedAt })
     .from(categories)

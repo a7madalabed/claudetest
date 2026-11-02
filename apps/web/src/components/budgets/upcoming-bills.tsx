@@ -1,7 +1,10 @@
 "use client";
 
 import type { CategoryDto, RecurringSeriesDto } from "@ledgerly/shared";
-import { CalendarClock, Repeat } from "lucide-react";
+import { CalendarClock, Repeat, Zap } from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { useCreateRule } from "@/lib/query/automation";
 import { motion } from "motion/react";
 import { fullMoney } from "@/components/charts/format";
 import { Card } from "@/components/ui/card";
@@ -38,12 +41,39 @@ export function UpcomingBills({
   householdId,
   categories,
   currency,
+  canEdit,
 }: {
   householdId: string;
   categories: CategoryDto[] | undefined;
   currency: string;
+  canEdit: boolean;
 }) {
   const { data, isPending } = useRecurring(householdId);
+  const createRule = useCreateRule(householdId);
+
+  /** Turn a DETECTED series into a RULE: from now on, the worker records it on its own. */
+  function automate(bill: RecurringSeriesDto) {
+    const day = Number(bill.nextDate.slice(8, 10));
+    createRule.mutate(
+      {
+        accountId: bill.accountId,
+        categoryId: bill.categoryId,
+        description: bill.description,
+        amountMinor: bill.amountMinor,
+        cadence: bill.cadence,
+        nextDate: bill.nextDate,
+        secondDay:
+          bill.cadence === "twice_monthly" ? bill.daysOfMonth.find((d) => d !== day) : undefined,
+        seriesKey: bill.key,
+      },
+      {
+        onSuccess: () =>
+          toast.success(`${bill.description} is now automatic`, {
+            description: `It will be recorded on ${formatDay(bill.nextDate)}${bill.variable ? " (at its typical amount)" : ""}.`,
+          }),
+      },
+    );
+  }
   const today = localToday();
   const bills =
     data?.series.filter((s) => s.amountMinor < 0 && daysUntil(s.nextDate, today) <= 30) ?? [];
@@ -108,6 +138,24 @@ export function UpcomingBills({
                   {when(bill.nextDate, today)}
                 </span>
               </span>
+              {bill.ruleId ? (
+                <Badge tone="primary" title="Recorded automatically">
+                  <Zap aria-hidden /> Auto
+                </Badge>
+              ) : (
+                canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => automate(bill)}
+                    disabled={createRule.isPending}
+                    aria-label={`Automate ${bill.description}`}
+                    title="Record this automatically"
+                    className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary-subtle hover:text-primary"
+                  >
+                    <Zap className="size-4" />
+                  </button>
+                )
+              )}
             </motion.li>
           ))}
         </motion.ul>

@@ -31,6 +31,8 @@ export interface RecurringSeries {
   occurrences: number;
   lastDate: string;
   nextDate: string;
+  /** Days of the month it falls on (monthly: one, twice-monthly: two, weekly: none). */
+  daysOfMonth: number[];
   accountId: string;
   categoryId: string | null;
 }
@@ -59,17 +61,49 @@ function median(values: number[]) {
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
+/** A recurring schedule: weekly, or on fixed days of the month. */
+export interface RecurrenceRule {
+  cadence: Cadence;
+  /** Monthly: the day of month. Twice-monthly: the first of the two days. Weekly: unused. */
+  anchorDay?: number | null;
+  /** Twice-monthly only: the second day (e.g. 1st and 15th). */
+  secondDay?: number | null;
+}
+
+const clampDay = (year: number, month: number, day: number) =>
+  Math.min(day, new Date(Date.UTC(year, month + 1, 0)).getUTCDate());
+
 /**
- * The `anchorDay` of the month after `date`, clamped to that month's length
- * (a bill on the 31st falls on Feb 28, then back on Mar 31 — the anchor stops it drifting).
+ * The first due date strictly AFTER `after`. Days past a month's end are clamped
+ * (the 31st → Feb 28) but the rule keeps its anchor, so March is the 31st again.
+ * Shared by detection (predicting the next bill) and the scheduler (creating it),
+ * so the two can never disagree.
  */
-function nextMonthlyDate(date: string, anchorDay: number) {
-  const d = new Date(`${date}T00:00:00Z`);
-  const day = anchorDay;
-  const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
-  const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
-  next.setUTCDate(Math.min(day, lastDay));
-  return toDate(next.getTime());
+export function nextRecurringDate(rule: RecurrenceRule, after: string): string {
+  if (rule.cadence === "weekly") return toDate(toTime(after) + 7 * DAY_MS);
+  const days = [rule.anchorDay, rule.cadence === "twice_monthly" ? rule.secondDay : null].filter(
+    (d): d is number => typeof d === "number",
+  );
+  const base = new Date(`${after}T00:00:00Z`);
+  for (let offset = 0; offset <= 2; offset++) {
+    const year = base.getUTCFullYear();
+    const month = base.getUTCMonth() + offset;
+    const candidates = days
+      .map((day) => {
+        const first = new Date(Date.UTC(year, month, 1));
+        return toDate(
+          Date.UTC(
+            first.getUTCFullYear(),
+            first.getUTCMonth(),
+            clampDay(first.getUTCFullYear(), first.getUTCMonth(), day),
+          ),
+        );
+      })
+      .filter((date) => date > after)
+      .sort();
+    if (candidates[0]) return candidates[0];
+  }
+  throw new Error("No next date found"); // unreachable for valid rules
 }
 
 export function detectRecurring(transactions: RecurringInput[], today: string): RecurringSeries[] {
@@ -100,11 +134,23 @@ export function detectRecurring(transactions: RecurringInput[], today: string): 
     const amounts = sorted.map((t) => Math.abs(t.amountMinor));
     const typical = Math.round(median(amounts));
     const spread = (Math.max(...amounts) - Math.min(...amounts)) / typical;
-    const anchorDay = Number(last.date.slice(8, 10));
-    const step = (date: string) =>
+    const dayOf = (date: string) => Number(date.slice(8, 10));
+    const daysOfMonth =
       match.cadence === "monthly"
-        ? nextMonthlyDate(date, anchorDay)
-        : toDate(toTime(date) + Math.round(typicalGap) * DAY_MS);
+        ? [dayOf(last.date)]
+        : match.cadence === "twice_monthly"
+          ? [...new Set(sorted.slice(-2).map((t) => dayOf(t.date)))].sort((a, b) => a - b)
+          : [];
+    const rule: RecurrenceRule = {
+      cadence: match.cadence,
+      anchorDay: daysOfMonth[0] ?? null,
+      secondDay: daysOfMonth[1] ?? null,
+    };
+    // Twice-monthly needs two distinct days; otherwise treat the gap literally.
+    const step = (date: string) =>
+      match.cadence === "twice_monthly" && daysOfMonth.length < 2
+        ? toDate(toTime(date) + Math.round(typicalGap) * DAY_MS)
+        : nextRecurringDate(rule, date);
     let next = step(last.date);
     // If the predicted date already passed without a new occurrence, roll forward.
     while (next < today) next = step(next);
@@ -118,6 +164,7 @@ export function detectRecurring(transactions: RecurringInput[], today: string): 
       occurrences: sorted.length,
       lastDate: last.date,
       nextDate: next,
+      daysOfMonth,
       accountId: last.accountId,
       categoryId: last.categoryId,
     });

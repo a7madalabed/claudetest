@@ -14,6 +14,7 @@ const membershipColumns = {
   id: households.id,
   name: households.name,
   baseCurrency: households.baseCurrency,
+  timeZone: households.timeZone,
   role: householdMembers.role,
   createdAt: households.createdAt,
 };
@@ -22,6 +23,7 @@ const toDto = (row: {
   id: string;
   name: string;
   baseCurrency: string;
+  timeZone: string;
   role: HouseholdDto["role"];
   createdAt: Date;
 }): HouseholdDto => ({

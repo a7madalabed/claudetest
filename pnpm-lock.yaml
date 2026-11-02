@@ -65,6 +65,9 @@ importers:
       '@scalar/fastify-api-reference':
         specifier: 1.76.4
         version: 1.76.4
+      csv-parse:
+        specifier: 7.0.3
+        version: 7.0.3
       fastify:
         specifier: 5.12.7
         version: 5.12.7
@@ -80,6 +83,9 @@ importers:
       pg:
         specifier: 8.23.1
         version: 8.23.1
+      pino:
+        specifier: 10.4.0
+        version: 10.4.0
       uuid:
         specifier: 14.0.3
         version: 14.0.3
@@ -3020,6 +3026,9 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  csv-parse@7.0.3:
+    resolution: {integrity: sha512-YFd3QM/yo17vH91L1IOZuvl09zM0zEEtdfTcOCKWcMdM++MNaQSyp09slXyFCLaPXvHstQFx/xC8myiFHSMUvw==}
 
   culori@4.0.2:
     resolution: {integrity: sha512-1+BhOB8ahCn4O0cep0Sh2l9KCOfOdY+BXJnKMHFFzDEouSr/el18QwXEMRlOj9UY5nCeA8UN3a/82rUWRBeyBw==}
@@ -7605,6 +7614,8 @@ snapshots:
   css.escape@1.5.1: {}
 
   csstype@3.2.3: {}
+
+  csv-parse@7.0.3: {}
 
   culori@4.0.2: {}
 

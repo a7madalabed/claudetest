@@ -1,13 +1,13 @@
 {
   "name": "ledgerly",
   "private": true,
-  "description": "A beautiful, scalable personal & household finance dashboard — built in stages as a learning project.",
+  "description": "A beautiful, scalable personal & household finance dashboard \u2014 built in stages as a learning project.",
   "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev dev:worker",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

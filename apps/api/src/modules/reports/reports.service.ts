@@ -5,6 +5,7 @@ import {
   gte,
   isNull,
   lte,
+  recurringRules,
   getDailyCashflow,
   getMonthlyCashflow,
   getNetWorthSeries,
@@ -85,7 +86,16 @@ export async function recurringReport(db: Database, householdId: string, today: 
         lte(transactions.occurredOn, today),
       ),
     );
-  return { series: detectRecurring(rows, today) };
+  const rules = await db
+    .select({ id: recurringRules.id, seriesKey: recurringRules.seriesKey })
+    .from(recurringRules)
+    .where(eq(recurringRules.householdId, householdId));
+  return {
+    series: detectRecurring(rows, today).map((series) => ({
+      ...series,
+      ruleId: rules.find((r) => r.seriesKey === series.key)?.id ?? null,
+    })),
+  };
 }
 
 // ─── Dashboard layout (a per-user preference) ───────────────────────────────
