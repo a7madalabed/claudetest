@@ -13,7 +13,9 @@ import type { Env } from "./config/env.js";
 import { AppError } from "./lib/errors.js";
 import { accountRoutes } from "./modules/accounts/accounts.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
+import { budgetRoutes } from "./modules/budgets/budgets.routes.js";
 import { categoryRoutes } from "./modules/categories/categories.routes.js";
+import { goalRoutes } from "./modules/goals/goals.routes.js";
 import { householdRoutes, meRoutes } from "./modules/households/households.routes.js";
 import { householdScope } from "./modules/households/scope.js";
 import { reportRoutes } from "./modules/reports/reports.routes.js";
@@ -137,6 +139,8 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
           await scoped.register(categoryRoutes);
           await scoped.register(transactionRoutes);
           await scoped.register(reportRoutes);
+          await scoped.register(budgetRoutes);
+          await scoped.register(goalRoutes);
         },
         { prefix: "/households/:householdId" },
       );

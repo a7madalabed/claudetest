@@ -6,14 +6,26 @@ import { useState, type ReactNode } from "react";
 import { BarList, type BarListItem } from "@/components/charts/bar-list";
 import { ChartCard } from "@/components/charts/chart-card";
 import { ColumnChart } from "@/components/charts/column-chart";
-import { fullMoney, longMonth, shortMoney, shortMonth } from "@/components/charts/format";
+import {
+  fullMoney,
+  longMonth,
+  shortMoney,
+  shortMonth,
+  wholeMoney,
+} from "@/components/charts/format";
 import { Legend } from "@/components/charts/legend";
 import { LineChart } from "@/components/charts/line-chart";
 import { AnimatedMoney } from "@/components/money";
 import { accountIcons, TransactionList } from "@/components/overview/overview";
+import { BudgetBar } from "@/components/budgets/budget-bar";
+import { StatusLabel } from "@/components/budgets/status";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { STATUS_LABEL, localMonth, monthElapsed } from "@/lib/budgets";
+import { CategoryIcon } from "@/lib/category-icons";
 import { spendingPace } from "@/lib/dashboard";
+import { useBudgets } from "@/lib/query/budgets";
+import { useHydrated } from "@/lib/use-hydrated";
 import { useAccounts, useCashflow, useCategories, useRecentTransactions } from "@/lib/query/hooks";
 import { useNetWorth, useSpendingByCategory } from "@/lib/query/reports";
 
@@ -375,6 +387,96 @@ export function RecentActivityWidget({
           accounts={accounts.data}
         />
       </div>
+    </ChartCard>
+  );
+}
+
+// ─── Budgets: the most urgent few, this month ────────────────────────────────
+
+export function BudgetsWidget({
+  householdId,
+  currency,
+  handle,
+}: {
+  householdId: string;
+  currency: string;
+  handle: ReactNode;
+}) {
+  const month = localMonth();
+  const query = useBudgets(householdId, month);
+  const hydrated = useHydrated(); // the app shell may already have this query (see useHydrated)
+  const data = hydrated ? query.data : undefined;
+  const isPending = !hydrated || query.isPending;
+  const elapsed = monthElapsed(month);
+  // The API sorts most-urgent first, so the top five are the ones worth a glance.
+  const top = data?.budgets.slice(0, 5) ?? [];
+  const over = data?.budgets.filter((b) => b.status === "over").length ?? 0;
+  return (
+    <ChartCard
+      title="Budgets"
+      subtitle={
+        data
+          ? `${fullMoney(Math.max(0, data.totals.remainingMinor), currency)} left this month${over ? ` · ${over} over` : ""}`
+          : " "
+      }
+      dragHandle={handle}
+      actions={
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/app/${householdId}/budgets`}>
+            All budgets <ArrowRight />
+          </Link>
+        </Button>
+      }
+      table={
+        data && {
+          columns: ["Budget", "Spent", "Available", "Status"],
+          numeric: [1, 2],
+          rows: data.budgets.map((b) => [
+            b.name,
+            fullMoney(b.spentMinor, currency),
+            fullMoney(b.availableMinor, currency),
+            STATUS_LABEL[b.status],
+          ]),
+        }
+      }
+    >
+      {isPending ? (
+        <div className="space-y-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-10" />
+          ))}
+        </div>
+      ) : top.length === 0 ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">
+          No budgets yet.{" "}
+          <Link href={`/app/${householdId}/budgets?new=1`} className="text-primary hover:underline">
+            Create one
+          </Link>
+        </div>
+      ) : (
+        <ul className="space-y-4">
+          {top.map((b) => (
+            <li key={b.id} className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <CategoryIcon name={b.icon} className="size-4 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate font-medium">{b.name}</span>
+                <StatusLabel status={b.status} className="hidden sm:inline-flex" />
+                <span className="tabular-nums text-muted-foreground">
+                  {wholeMoney(b.spentMinor, currency)} / {wholeMoney(b.availableMinor, currency)}
+                </span>
+              </div>
+              <BudgetBar
+                size="sm"
+                spentMinor={b.spentMinor}
+                availableMinor={b.availableMinor}
+                status={b.status}
+                elapsed={elapsed}
+                label={`${b.name} budget`}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
     </ChartCard>
   );
 }

@@ -30,6 +30,8 @@ export const openApiPlugin = fp(
           { name: "Accounts", description: "Bank accounts, cards and cash" },
           { name: "Categories", description: "Two-level income/expense categories" },
           { name: "Transactions", description: "Money in, money out, and transfers" },
+          { name: "Budgets", description: "Monthly category budgets with rollover" },
+          { name: "Goals", description: "Savings goals with projections" },
           { name: "Reports", description: "Aggregated views for dashboards" },
           { name: "System", description: "Health checks" },
         ],

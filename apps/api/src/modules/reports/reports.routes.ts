@@ -4,11 +4,14 @@ import {
   DashboardLayoutSchema,
   DateRangeQuerySchema,
   HouseholdParamsSchema,
+  IsoDateSchema,
   NetWorthReportSchema,
+  RecurringReportSchema,
   SpendingByCategoryQuerySchema,
   SpendingByCategoryReportSchema,
 } from "@ledgerly/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { z } from "zod";
 import { commonProblems } from "../../lib/responses.js";
 import * as service from "./reports.service.js";
 
@@ -75,6 +78,27 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) =>
       service.dailyCashflowReport(app.db, request.params.householdId, request.query),
+  );
+
+  app.get(
+    "/reports/recurring",
+    {
+      schema: {
+        tags,
+        summary: "Detected recurring bills and income, with the next expected date",
+        params: HouseholdParamsSchema,
+        querystring: z.object({
+          today: IsoDateSchema.optional().meta({ description: "The client's local date" }),
+        }),
+        response: { 200: RecurringReportSchema, ...commonProblems },
+      },
+    },
+    async (request) =>
+      service.recurringReport(
+        app.db,
+        request.params.householdId,
+        request.query.today ?? new Date().toISOString().slice(0, 10),
+      ),
   );
 
   app.get(

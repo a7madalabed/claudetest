@@ -49,6 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   AccountsWidget,
+  BudgetsWidget,
   CashflowWidget,
   CategoryWidget,
   NetWorthWidget,
@@ -62,6 +63,7 @@ const WIDGET_NAMES: Record<DashboardWidget, string> = {
   "net-worth": "Net worth",
   accounts: "Accounts",
   "recent-activity": "Recent activity",
+  budgets: "Budgets",
 };
 /** Wide widgets span both columns on large screens. */
 const WIDE: DashboardWidget[] = ["cashflow"];
@@ -286,6 +288,14 @@ export function Dashboard({ householdId }: { householdId: string }) {
                         return <AccountsWidget householdId={householdId} handle={handle} />;
                       case "recent-activity":
                         return <RecentActivityWidget householdId={householdId} handle={handle} />;
+                      case "budgets":
+                        return (
+                          <BudgetsWidget
+                            householdId={householdId}
+                            currency={currency}
+                            handle={handle}
+                          />
+                        );
                     }
                   }}
                 </SortableWidget>

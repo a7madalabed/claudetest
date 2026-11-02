@@ -66,7 +66,7 @@ export function useTestApp(envOverrides: Record<string, string> = {}) {
 
   beforeEach(async () => {
     await database.db.execute(
-      sql`truncate table recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users cascade`,
+      sql`truncate table budget_amounts, budgets, goals, dashboard_layouts, recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users cascade`,
     );
     const demo = await seedDemoData(database.db, { today: "2026-06-15", seed: 1 });
 

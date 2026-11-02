@@ -77,6 +77,7 @@ export const DashboardWidgetSchema = z.enum([
   "net-worth",
   "accounts",
   "recent-activity",
+  "budgets",
 ]);
 export type DashboardWidget = z.infer<typeof DashboardWidgetSchema>;
 

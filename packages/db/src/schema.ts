@@ -320,6 +320,92 @@ export const transactions = pgTable(
   ],
 );
 
+// ─── Budgets ─────────────────────────────────────────────────────────────────
+
+/**
+ * A monthly spending limit for one expense category (spending in its
+ * subcategories counts too). The AMOUNT lives in `budget_amounts`, effective-
+ * dated: raising your groceries budget in March must not rewrite January's
+ * history — or every past month's "over/under" would silently change.
+ */
+export const budgets = pgTable(
+  "budgets",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id").notNull(),
+    /** First month the budget applies to (always the 1st of a month). */
+    startMonth: date("start_month", { mode: "string" }).notNull(),
+    /** Carry what's left (or overspent) into the next month. */
+    rollover: boolean("rollover").notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    // The category must belong to the same household (Stage 3's composite-FK pattern).
+    foreignKey({
+      name: "budgets_category_fkey",
+      columns: [t.categoryId, t.householdId],
+      foreignColumns: [categories.id, categories.householdId],
+    }).onDelete("cascade"),
+    unique("budgets_household_category_key").on(t.householdId, t.categoryId),
+    check("budgets_start_month_is_first", sql`extract(day from ${t.startMonth}) = 1`),
+  ],
+);
+
+/** Effective-dated amounts: the amount for month M is the latest row with effective_month <= M. */
+export const budgetAmounts = pgTable(
+  "budget_amounts",
+  {
+    budgetId: uuid("budget_id")
+      .notNull()
+      .references(() => budgets.id, { onDelete: "cascade" }),
+    effectiveMonth: date("effective_month", { mode: "string" }).notNull(),
+    amountMinor: money("amount_minor").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ name: "budget_amounts_pkey", columns: [t.budgetId, t.effectiveMonth] }),
+    check("budget_amounts_positive", sql`${t.amountMinor} > 0`),
+    check("budget_amounts_month_is_first", sql`extract(day from ${t.effectiveMonth}) = 1`),
+  ],
+);
+
+// ─── Savings goals ───────────────────────────────────────────────────────────
+
+/**
+ * A target balance for one account ("Emergency fund: $25,000 in High-Yield
+ * Savings"). Progress is the account's REAL balance, so it updates itself as
+ * money moves — no manual "add contribution" bookkeeping to forget.
+ */
+export const goals = pgTable(
+  "goals",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").notNull(),
+    name: text("name").notNull(),
+    targetMinor: money("target_minor").notNull(),
+    /** Optional deadline; enables "on track / behind" and "save $X per month". */
+    targetDate: date("target_date", { mode: "string" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "goals_account_fkey",
+      columns: [t.accountId, t.householdId],
+      foreignColumns: [accounts.id, accounts.householdId],
+    }).onDelete("cascade"),
+    check("goals_target_positive", sql`${t.targetMinor} > 0`),
+    check("goals_name_length", sql`char_length(${t.name}) between 1 and 60`),
+  ],
+);
+
 // ─── Idempotency keys (safe retries for POST requests) ───────────────────────
 
 /**
@@ -385,4 +471,7 @@ export type NewAccount = typeof accounts.$inferInsert;
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
+export type Budget = typeof budgets.$inferSelect;
+export type BudgetAmount = typeof budgetAmounts.$inferSelect;
+export type Goal = typeof goals.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;

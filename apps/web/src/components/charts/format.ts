@@ -14,6 +14,12 @@ export function axisMoney(minor: number, currency: string, compact: boolean) {
 /** Full precision, for tooltips and tables. */
 export const fullMoney = (minor: number, currency: string) => formatMoney(minor, currency);
 
+/** "$548" — whole units, for rough figures like a monthly pace (cents would be false precision). */
+export const wholeMoney = (minor: number, currency: string) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(
+    minor / 100,
+  );
+
 /** "$12.3K" for stat tiles and direct labels where space is tight. */
 export const shortMoney = (minor: number, currency: string) =>
   new Intl.NumberFormat("en-US", {

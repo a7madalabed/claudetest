@@ -2,15 +2,19 @@ import {
   and,
   dashboardLayouts,
   eq,
+  gte,
+  isNull,
+  lte,
   getDailyCashflow,
   getMonthlyCashflow,
   getNetWorthSeries,
   getSpendingByCategory,
   getSpendingBySubcategory,
   sql,
+  transactions,
   type Database,
 } from "@ledgerly/db";
-import type { DashboardWidget } from "@ledgerly/shared";
+import { detectRecurring, type DashboardWidget } from "@ledgerly/shared";
 
 type Range = { from: string; to: string };
 
@@ -55,6 +59,35 @@ export async function dailyCashflowReport(db: Database, householdId: string, ran
   return { days: await getDailyCashflow(db, householdId, range) };
 }
 
+/**
+ * Recurring bills & income, detected from the last ~6 months (transfers excluded:
+ * paying your own credit card isn't a bill). Detection is pure and lives in
+ * @ledgerly/shared; this only fetches the history it needs.
+ */
+export async function recurringReport(db: Database, householdId: string, today: string) {
+  const from = new Date(Date.parse(`${today}T00:00:00Z`) - 190 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const rows = await db
+    .select({
+      date: transactions.occurredOn,
+      description: transactions.description,
+      amountMinor: transactions.amountMinor,
+      accountId: transactions.accountId,
+      categoryId: transactions.categoryId,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.householdId, householdId),
+        isNull(transactions.transferId),
+        gte(transactions.occurredOn, from),
+        lte(transactions.occurredOn, today),
+      ),
+    );
+  return { series: detectRecurring(rows, today) };
+}
+
 // ─── Dashboard layout (a per-user preference) ───────────────────────────────
 
 export const DEFAULT_DASHBOARD: DashboardWidget[] = [
@@ -63,6 +96,7 @@ export const DEFAULT_DASHBOARD: DashboardWidget[] = [
   "net-worth",
   "accounts",
   "recent-activity",
+  "budgets",
 ];
 
 export async function getDashboardLayout(db: Database, userId: string, householdId: string) {

@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowLeftRight, LayoutDashboard, Shield, Wallet, type LucideIcon } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Goal,
+  LayoutDashboard,
+  ChartPie,
+  Shield,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -13,12 +21,26 @@ export interface NavItem {
   icon: LucideIcon;
   /** Match only the exact path (for the household root). */
   exact?: boolean;
+  /** A count that needs attention (e.g. budgets over their limit). */
+  badge?: { count: number; label: string };
 }
 
-export function householdNav(householdId: string): NavItem[] {
+export function householdNav(householdId: string, overBudget = 0): NavItem[] {
   return [
     { href: `/app/${householdId}`, label: "Dashboard", icon: LayoutDashboard, exact: true },
     { href: `/app/${householdId}/transactions`, label: "Transactions", icon: ArrowLeftRight },
+    {
+      href: `/app/${householdId}/budgets`,
+      label: "Budgets",
+      icon: ChartPie,
+      ...(overBudget > 0 && {
+        badge: {
+          count: overBudget,
+          label: `${overBudget} ${overBudget === 1 ? "budget" : "budgets"} over the limit`,
+        },
+      }),
+    },
+    { href: `/app/${householdId}/goals`, label: "Goals", icon: Goal },
     { href: `/app/${householdId}/accounts`, label: "Accounts", icon: Wallet },
   ];
 }
@@ -36,7 +58,7 @@ export function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: 
   const pathname = usePathname();
   return (
     <ul className="grid gap-0.5">
-      {items.map(({ href, label, icon: Icon, exact }) => {
+      {items.map(({ href, label, icon: Icon, exact, badge }) => {
         const active = exact
           ? pathname === href
           : pathname === href || pathname.startsWith(`${href}/`);
@@ -62,6 +84,19 @@ export function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: 
               )}
               <Icon className={cn("relative size-4", active && "text-primary")} />
               <span className="relative">{label}</span>
+              {badge && (
+                <motion.span
+                  key={badge.count}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={spring.bouncy}
+                  title={badge.label}
+                  className="relative ml-auto rounded-full bg-negative-subtle px-1.5 text-xs font-semibold text-negative tabular-nums"
+                >
+                  {badge.count}
+                  <span className="sr-only"> — {badge.label}</span>
+                </motion.span>
+              )}
             </Link>
           </li>
         );

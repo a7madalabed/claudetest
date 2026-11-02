@@ -36,6 +36,20 @@
       "when": 1793597547185,
       "tag": "0004_dashboard_layouts",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793598967422,
+      "tag": "0005_budgets_and_goals",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793598968356,
+      "tag": "0006_budgets_goals_triggers",
+      "breakpoints": true
     }
   ]
 }

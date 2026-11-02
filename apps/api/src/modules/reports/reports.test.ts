@@ -100,6 +100,7 @@ describe("dashboard layout", () => {
       "spending-by-category",
       "accounts",
       "recent-activity",
+      "budgets",
     ];
     const saved = await request(ctx.app, OWNER, {
       method: "PUT",
@@ -133,7 +134,8 @@ describe("dashboard layout", () => {
     });
     const { widgets } = (await request(ctx.app, OWNER, { method: "GET", url: url() })).json();
     expect(widgets.slice(0, 2)).toEqual(["accounts", "cashflow"]);
-    expect(widgets).toHaveLength(5);
+    expect(widgets).toHaveLength(6);
+    expect(widgets.at(-1)).toBe("budgets");
   });
 
   it("rejects unknown and duplicate widgets", async () => {

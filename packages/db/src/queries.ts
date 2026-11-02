@@ -206,3 +206,78 @@ export function getDailyCashflow(
     .groupBy(transactions.occurredOn)
     .orderBy(transactions.occurredOn);
 }
+
+/**
+ * Spending per BUDGET per month in [from, to): a budget on "Food" counts its own
+ * transactions AND those of its subcategories (Groceries, Coffee…). Refunds in
+ * the category reduce spending, so this is NET spending.
+ */
+export async function getBudgetMonthlySpending(
+  db: Database,
+  householdId: string,
+  range: { from: string; to: string },
+) {
+  const result = await db.execute<{ budget_id: string; month: string; spent_minor: string }>(sql`
+    select b.id as budget_id, to_char(t.occurred_on, 'YYYY-MM') as month, (-sum(t.amount_minor))::bigint as spent_minor
+    from budgets b
+    join categories c on c.household_id = b.household_id and (c.id = b.category_id or c.parent_id = b.category_id)
+    join transactions t on t.household_id = b.household_id and t.category_id = c.id
+    where b.household_id = ${householdId}
+      and t.occurred_on >= ${range.from}::date and t.occurred_on < ${range.to}::date
+    group by b.id, to_char(t.occurred_on, 'YYYY-MM')`);
+  return result.rows.map((r) => ({
+    budgetId: r.budget_id,
+    month: r.month,
+    spentMinor: Number(r.spent_minor),
+  }));
+}
+
+/** An account's balance at the end of each month in [from, to) — the history behind goal projections. */
+export async function getAccountMonthEndBalances(
+  db: Database,
+  householdId: string,
+  accountId: string,
+  range: { from: string; to: string },
+) {
+  const result = await db.execute<{ month: string; balance_minor: string }>(sql`
+    with months as (
+      select generate_series(date_trunc('month', ${range.from}::date), date_trunc('month', ${range.to}::date - 1), interval '1 month')::date as month
+    )
+    select to_char(m.month, 'YYYY-MM') as month,
+           (a.opening_balance_minor + coalesce((
+              select sum(t.amount_minor) from transactions t
+              where t.account_id = a.id and t.occurred_on < (m.month + interval '1 month')::date
+           ), 0))::bigint as balance_minor
+    from months m
+    cross join accounts a
+    where a.id = ${accountId} and a.household_id = ${householdId}
+    order by m.month`);
+  return result.rows.map((r) => ({ month: r.month, balanceMinor: Number(r.balance_minor) }));
+}
+
+/**
+ * Spending in [from, to) that NO budget covers: expense categories with no
+ * budget on themselves or their parent, plus uncategorised money out (transfers
+ * excluded). Net of refunds and never negative.
+ */
+export async function getUnbudgetedSpending(
+  db: Database,
+  householdId: string,
+  range: { from: string; to: string },
+) {
+  const result = await db.execute<{ spent_minor: string }>(sql`
+    select greatest(0, coalesce(-sum(t.amount_minor), 0))::bigint as spent_minor
+    from transactions t
+    left join categories c on c.id = t.category_id and c.household_id = t.household_id
+    where t.household_id = ${householdId}
+      and t.transfer_id is null
+      and t.occurred_on >= ${range.from}::date and t.occurred_on < ${range.to}::date
+      and (
+        (c.id is null and t.amount_minor < 0)
+        or (c.kind = 'expense' and not exists (
+          select 1 from budgets b
+          where b.household_id = t.household_id and b.category_id in (c.id, c.parent_id)
+        ))
+      )`);
+  return Number(result.rows[0]?.spent_minor ?? 0);
+}

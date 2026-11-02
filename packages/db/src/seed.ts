@@ -2,7 +2,10 @@ import { v7 as uuidv7 } from "uuid";
 import type { Database } from "./client.js";
 import {
   accounts,
+  budgetAmounts,
+  budgets,
   categories,
+  goals,
   householdMembers,
   households,
   transactions,
@@ -370,6 +373,59 @@ export async function seedDemoData(
     for (let i = 0; i < withPayments.length; i += 500) {
       await tx.insert(transactions).values(withPayments.slice(i, i + 500));
     }
+
+    // ── Budgets (started 5 months ago) and a savings goal ─────────────────
+    const monthStart = (offset: number) => {
+      const d = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + offset, 1));
+      return d.toISOString().slice(0, 10);
+    };
+    const budgetSpecs: Array<{
+      category: string;
+      amounts: Array<[number, number]>;
+      rollover?: boolean;
+    }> = [
+      { category: "Groceries", amounts: [[-5, 50_000]], rollover: true },
+      // Raised two months ago: earlier months keep the OLD amount (effective dating).
+      {
+        category: "Dining out",
+        amounts: [
+          [-5, 20_000],
+          [-2, 25_000],
+        ],
+      },
+      { category: "Coffee", amounts: [[-5, 5_500]], rollover: true },
+      { category: "Utilities", amounts: [[-5, 15_000]] },
+      { category: "Shopping", amounts: [[-5, 15_000]] },
+      { category: "Entertainment", amounts: [[-5, 9_000]] },
+    ];
+    for (const spec of budgetSpecs) {
+      const [budget] = await tx
+        .insert(budgets)
+        .values({
+          householdId,
+          categoryId: categoryId[spec.category]!,
+          startMonth: monthStart(-5),
+          rollover: spec.rollover ?? false,
+        })
+        .returning({ id: budgets.id });
+      await tx.insert(budgetAmounts).values(
+        spec.amounts.map(([offset, amountMinor]) => ({
+          budgetId: budget!.id,
+          effectiveMonth: monthStart(offset),
+          amountMinor,
+        })),
+      );
+    }
+    const targetDate = new Date(Date.UTC(end.getUTCFullYear() + 1, end.getUTCMonth(), 1))
+      .toISOString()
+      .slice(0, 10);
+    await tx.insert(goals).values({
+      householdId,
+      accountId: account.savings,
+      name: "Emergency fund",
+      targetMinor: 2_500_000,
+      targetDate,
+    });
 
     return { userId: user.id, householdId, transactionCount: withPayments.length };
   });

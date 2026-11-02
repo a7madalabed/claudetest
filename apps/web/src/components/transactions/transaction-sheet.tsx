@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { currencySymbol, minorToInput } from "@/lib/money-input";
 import { spring } from "@/lib/motion";
 import {
   newTransactionId,
@@ -59,20 +60,6 @@ const todayIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-
-/** 123450 cents → "1234.50" for editing (the reverse of parseMoney). */
-function minorToInput(amountMinor: number, currency: string) {
-  const decimals = currencyDecimals(currency);
-  return (Math.abs(amountMinor) / 10 ** decimals).toFixed(decimals);
-}
-
-function currencySymbol(currency: string) {
-  return (
-    new Intl.NumberFormat("en-US", { style: "currency", currency })
-      .formatToParts(0)
-      .find((p) => p.type === "currency")?.value ?? currency
-  );
-}
 
 function defaults(mode: SheetMode, accounts: AccountDto[]): FormValues {
   if (mode.type === "edit") {

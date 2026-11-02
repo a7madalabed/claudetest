@@ -14,7 +14,7 @@ const { db, close } = createDb({
 try {
   // Start from a clean slate so running the seed twice doesn't duplicate data.
   await db.execute(
-    sql`truncate table recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users restart identity cascade`,
+    sql`truncate table budget_amounts, budgets, goals, dashboard_layouts, recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users restart identity cascade`,
   );
   const result = await seedDemoData(db);
   console.log(`✅ Seeded demo household with ${result.transactionCount} transactions`);

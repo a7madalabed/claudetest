@@ -1,7 +1,18 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Home, LogOut, Monitor, Moon, Plus, Search, Sun, type LucideIcon } from "lucide-react";
+import {
+  Goal,
+  Home,
+  LogOut,
+  Monitor,
+  Moon,
+  PiggyBank,
+  Plus,
+  Search,
+  Sun,
+  type LucideIcon,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "radix-ui";
@@ -81,6 +92,20 @@ export function CommandPalette({
                     onSelect={run(() => router.push(`/app/${household.id}/transactions?new=1`))}
                   >
                     New transaction
+                  </PaletteItem>
+                  <PaletteItem
+                    icon={PiggyBank}
+                    keywords={["budget", "limit", "category"]}
+                    onSelect={run(() => router.push(`/app/${household.id}/budgets?new=1`))}
+                  >
+                    New budget
+                  </PaletteItem>
+                  <PaletteItem
+                    icon={Goal}
+                    keywords={["goal", "save", "savings", "target"]}
+                    onSelect={run(() => router.push(`/app/${household.id}/goals?new=1`))}
+                  >
+                    New savings goal
                   </PaletteItem>
                 </Command.Group>
               )}

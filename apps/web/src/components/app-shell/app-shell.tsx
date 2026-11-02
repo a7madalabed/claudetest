@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import { Logo } from "@/components/logo";
 import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useBudgetAlerts } from "@/lib/use-budget-alerts";
 import { CommandPalette } from "./command-palette";
 import { useCurrentHousehold } from "./household-context";
 import { HouseholdSwitcher } from "./household-switcher";
@@ -15,9 +16,11 @@ import { UserMenu } from "./user-menu";
 function SidebarContents({
   onNavigate,
   onOpenPalette,
+  overBudget,
 }: {
   onNavigate?: () => void;
   onOpenPalette: () => void;
+  overBudget: number;
 }) {
   const household = useCurrentHousehold();
   return (
@@ -40,7 +43,9 @@ function SidebarContents({
         <Kbd>⌘K</Kbd>
       </button>
       <nav aria-label="Main" className="grid gap-6">
-        {household && <NavList items={householdNav(household.id)} onNavigate={onNavigate} />}
+        {household && (
+          <NavList items={householdNav(household.id, overBudget)} onNavigate={onNavigate} />
+        )}
         <div className="grid gap-1.5">
           <p className="px-3 text-caption font-medium tracking-wide text-muted-foreground uppercase">
             Settings
@@ -63,6 +68,9 @@ function SidebarContents({
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Called ONCE here (not in the sidebar, which renders twice: desktop + mobile menu).
+  const household = useCurrentHousehold();
+  const overBudget = useBudgetAlerts(household?.id, household?.baseCurrency ?? "USD");
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[17rem_minmax(0,1fr)]">
@@ -74,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
 
       <aside className="sticky top-0 hidden h-dvh border-r border-border bg-muted/40 lg:block">
-        <SidebarContents onOpenPalette={() => setPaletteOpen(true)} />
+        <SidebarContents overBudget={overBudget} onOpenPalette={() => setPaletteOpen(true)} />
       </aside>
 
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md lg:hidden">
@@ -88,6 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SheetContent aria-describedby={undefined}>
             <SheetTitle className="sr-only">Menu</SheetTitle>
             <SidebarContents
+              overBudget={overBudget}
               onNavigate={() => setMobileOpen(false)}
               onOpenPalette={() => {
                 setMobileOpen(false);
