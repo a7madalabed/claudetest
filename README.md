@@ -18,7 +18,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 8   | [Dashboard & charts](./docs/stage-08-dashboard-and-charts.md)                 | ✅ Done |
 | 9   | [Budgets & goals](./docs/stage-09-budgets-and-goals.md)                       | ✅ Done |
 | 10  | [Imports & background jobs](./docs/stage-10-imports-and-background-jobs.md)   | ✅ Done |
-| 11  | Households & real-time                                                        | ⏳      |
+| 11  | [Households & real-time](./docs/stage-11-households-and-real-time.md)         | ✅ Done |
 | 12  | Performance & scalability                                                     | ⏳      |
 | 13  | Testing strategy                                                              | ⏳      |
 | 14  | Deployment & operations                                                       | ⏳      |
@@ -66,7 +66,7 @@ pnpm dev
 
 `pnpm dev` starts three processes: the web app, the API, and the **background worker** that runs imports, scheduled tasks and notifications. Development "emails" are printed in the worker's log instead of being sent.
 
-Then open http://localhost:3000 and sign in with **demo@ledgerly.app** / **correct-horse-ledger** (or create your own account). The living style guide is at http://localhost:3000/design. The API runs on http://localhost:4000 (try http://localhost:4000/health and http://localhost:4000/health/ready).
+Then open http://localhost:3000 and sign in with **demo@ledgerly.app** / **correct-horse-ledger** (or create your own account). The demo household is shared with **jamie@ledgerly.app** (same password): sign in as Jamie in a second browser to see changes appear live. The living style guide is at http://localhost:3000/design. The API runs on http://localhost:4000 (try http://localhost:4000/health and http://localhost:4000/health/ready).
 
 Interactive API documentation lives at **http://localhost:4000/docs**. Sign in through `POST /v1/auth/login` with the demo account **demo@ledgerly.app** / **correct-horse-ledger** (the docs page keeps the session cookie for you).
 

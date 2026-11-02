@@ -64,6 +64,20 @@
       "when": 1793601370265,
       "tag": "0008_budget_evaluation_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793619294001,
+      "tag": "0009_household_invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793619295075,
+      "tag": "0010_realtime_notify_triggers",
+      "breakpoints": true
     }
   ]
 }

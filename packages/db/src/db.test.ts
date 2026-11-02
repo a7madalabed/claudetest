@@ -333,8 +333,8 @@ describe("seed data", () => {
 
     expect(second.transactionCount).toBe(first.transactionCount);
     expect(balancesAgain.map((b) => b.balanceMinor)).toEqual(balances.map((b) => b.balanceMinor));
-    expect(members).toHaveLength(1);
-    expect(members[0]!.role).toBe("owner");
+    // A shared household: the demo owner and their partner (an editor).
+    expect(members.map((m) => m.role).sort()).toEqual(["editor", "owner"]);
 
     // Every transfer is a balanced pair: the two halves sum to exactly zero.
     const unbalanced = await db.execute(sql`

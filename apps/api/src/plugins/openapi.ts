@@ -27,6 +27,8 @@ export const openApiPlugin = fp(
         tags: [
           { name: "Auth", description: "Sign-up, sign-in, two-factor authentication and sessions" },
           { name: "Households", description: "The current user and their households" },
+          { name: "Members", description: "Who belongs to a household, and their roles" },
+          { name: "Invitations", description: "Inviting people by email, and accepting" },
           { name: "Accounts", description: "Bank accounts, cards and cash" },
           { name: "Categories", description: "Two-level income/expense categories" },
           { name: "Transactions", description: "Money in, money out, and transfers" },
@@ -39,6 +41,10 @@ export const openApiPlugin = fp(
           },
           { name: "Notifications", description: "Alerts for the signed-in user" },
           { name: "Reports", description: "Aggregated views for dashboards" },
+          {
+            name: "Realtime",
+            description: "A live stream of change notifications (Server-Sent Events)",
+          },
           { name: "System", description: "Health checks" },
         ],
         components: {

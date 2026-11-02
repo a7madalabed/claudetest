@@ -12,16 +12,17 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { isApiError } from "@/lib/api/errors";
 import { useSignup } from "@/lib/query/hooks";
 import { FormAlert } from "./form-alert";
+import { safeNext } from "./login-form";
 import { PasswordStrength } from "./password-strength";
 
-export function SignupForm() {
+export function SignupForm({ next, email }: { next?: string; email?: string }) {
   const router = useRouter();
   const signup = useSignup();
   // The SAME schema the API validates with: identical rules, instant feedback.
   const form = useForm<z.input<typeof SignupSchema>, unknown, SignupInput>({
     resolver: zodResolver(SignupSchema),
     mode: "onTouched",
-    defaultValues: { displayName: "", email: "", password: "" },
+    defaultValues: { displayName: "", email: email ?? "", password: "" },
   });
   const { errors } = form.formState;
   // useWatch subscribes to ONE field, so typing re-renders only what depends on it.
@@ -30,7 +31,8 @@ export function SignupForm() {
   const onSubmit = form.handleSubmit((values) =>
     signup.mutate(values, {
       onSuccess: (me) => {
-        router.replace(`/app/${me.households[0]!.id}`);
+        // Came from an invitation? Go back to it to accept; otherwise, to your new household.
+        router.replace(next ? safeNext(next) : `/app/${me.households[0]!.id}`);
         router.refresh();
       },
       onError: (error) => {
@@ -80,7 +82,14 @@ export function SignupForm() {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link
+          href={
+            next
+              ? `/login?next=${encodeURIComponent(next)}${email ? `&email=${encodeURIComponent(email)}` : ""}`
+              : "/login"
+          }
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
           Sign in
         </Link>
       </p>

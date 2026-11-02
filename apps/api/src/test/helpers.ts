@@ -54,16 +54,26 @@ export const SESSION_COOKIE = "ledgerly_session";
  */
 let currentTokens: Record<string, string> = {};
 
-export function useTestApp(envOverrides: Record<string, string> = {}) {
-  const database = createDb({ connectionString: API_TEST_DATABASE_URL, maxConnections: 4 });
+export function useTestApp(
+  envOverrides: Record<string, string> = {},
+  { realtime = false }: { realtime?: boolean } = {},
+) {
+  const database = createDb({ connectionString: API_TEST_DATABASE_URL, maxConnections: 6 });
   const ctx = {
     app: undefined as unknown as FastifyInstance,
     db: database.db as Database,
     fixtures: {} as Fixtures,
+    /** Set when `realtime` is on: the app listens on a real port, for streaming tests. */
+    baseUrl: "",
   };
 
   beforeAll(async () => {
-    ctx.app = await buildApp(testEnv(envOverrides), { db: database.db, closeDb: database.close });
+    ctx.app = await buildApp(testEnv(envOverrides), {
+      db: database.db,
+      closeDb: database.close,
+      ...(realtime && { pool: database.pool }),
+    });
+    if (realtime) ctx.baseUrl = await ctx.app.listen({ host: "127.0.0.1", port: 0 });
   });
 
   afterAll(() => ctx.app.close());
@@ -117,6 +127,9 @@ export function useTestApp(envOverrides: Record<string, string> = {}) {
  * Fires an in-memory request as `user` (an email from the fixtures, or null for
  * anonymous). No network involved.
  */
+/** The session token of a fixture user (for raw HTTP clients like the SSE tests). */
+export const tokenOf = (email: string) => currentTokens[email]!;
+
 export function request(
   app: FastifyInstance,
   user: string | null,
@@ -140,7 +153,10 @@ export function jobRunner(db: Database) {
   const mailer = new MemoryMailer();
   const worker = new Worker({
     db,
-    definitions: jobDefinitions({ appUrl: "http://localhost:3000" }),
+    definitions: jobDefinitions({
+      appUrl: "http://localhost:3000",
+      encryptionKey: Buffer.from(TEST_ENCRYPTION_KEY, "base64"),
+    }),
     mailer,
     log: pino({ level: "silent" }),
   });

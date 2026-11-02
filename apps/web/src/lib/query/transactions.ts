@@ -113,12 +113,8 @@ function restoreLists(queryClient: QueryClient, snapshot: ReturnType<typeof snap
 }
 
 /** After any change: refetch lists, summaries, balances and reports for the household. */
-const refreshHousehold = (queryClient: QueryClient, householdId: string) => {
-  // A change may trigger a budget alert a few seconds later (a background job,
-  // debounced by 2 s): check notifications then, instead of waiting for the poll.
-  setTimeout(() => void queryClient.invalidateQueries({ queryKey: ["notifications"] }), 4_000);
-  return queryClient.invalidateQueries({ queryKey: ["households", householdId] });
-};
+const refreshHousehold = (queryClient: QueryClient, householdId: string) =>
+  queryClient.invalidateQueries({ queryKey: ["households", householdId] });
 
 function useParentOf(categories: CategoryDto[] | undefined) {
   return useMemo(() => {

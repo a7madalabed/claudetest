@@ -4,6 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
 import type { Database } from "@ledgerly/db";
 import Fastify, { type FastifyInstance } from "fastify";
+import type pg from "pg";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -17,7 +18,11 @@ import { budgetRoutes } from "./modules/budgets/budgets.routes.js";
 import { categoryRoutes } from "./modules/categories/categories.routes.js";
 import { goalRoutes } from "./modules/goals/goals.routes.js";
 import { importRoutes } from "./modules/imports/imports.routes.js";
-import { householdRoutes, meRoutes } from "./modules/households/households.routes.js";
+import {
+  householdRoutes,
+  invitationRoutes,
+  meRoutes,
+} from "./modules/households/households.routes.js";
 import { householdScope } from "./modules/households/scope.js";
 import { notificationRoutes } from "./modules/notifications/notifications.routes.js";
 import { recurringRoutes } from "./modules/recurring/recurring.routes.js";
@@ -28,6 +33,7 @@ import { csrfPlugin } from "./plugins/csrf.js";
 import { databasePlugin } from "./plugins/database.js";
 import { errorHandlerPlugin } from "./plugins/error-handler.js";
 import { openApiPlugin } from "./plugins/openapi.js";
+import { realtimePlugin } from "./realtime/events.plugin.js";
 import { healthRoutes } from "./routes/health.js";
 
 const VERSION = process.env.npm_package_version ?? "0.1.0";
@@ -37,6 +43,8 @@ export interface AppDependencies {
   db: Database;
   /** Called on shutdown to release resources (e.g. close the connection pool). */
   closeDb?: () => Promise<void>;
+  /** The raw pool, for the realtime LISTEN connection. Without it, /v1/events is off. */
+  pool?: pg.Pool;
 }
 
 /**
@@ -124,6 +132,11 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
 
   await app.register(healthRoutes, { version: VERSION });
 
+  // Live updates over Server-Sent Events (needs a raw pool for LISTEN).
+  if (deps.pool) {
+    await app.register(realtimePlugin, { pool: deps.pool, heartbeatMs: env.REALTIME_HEARTBEAT_MS });
+  }
+
   // Versioned API: /v1/… lets us ship breaking changes later as /v2 without
   // breaking existing clients.
   await app.register(
@@ -134,11 +147,15 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
         ttlDays: env.SESSION_TTL_DAYS,
       });
       await v1.register(meRoutes);
+      await v1.register(invitationRoutes);
       await v1.register(notificationRoutes);
       await v1.register(
         async (scoped) => {
           await scoped.register(householdScope);
-          await scoped.register(householdRoutes);
+          await scoped.register(householdRoutes, {
+            encryptionKey: env.ENCRYPTION_KEY,
+            appUrl: env.APP_URL,
+          });
           await scoped.register(accountRoutes);
           await scoped.register(categoryRoutes);
           await scoped.register(transactionRoutes);

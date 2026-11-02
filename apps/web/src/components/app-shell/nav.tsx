@@ -7,6 +7,7 @@ import {
   ChartPie,
   FileUp,
   Shield,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -47,9 +48,15 @@ export function householdNav(householdId: string, overBudget = 0): NavItem[] {
   ];
 }
 
-export const settingsNav: NavItem[] = [
-  { href: "/app/settings/security", label: "Security", icon: Shield },
-];
+/** Settings: the current household's (members, invitations), then your own account's. */
+export function settingsNav(householdId?: string): NavItem[] {
+  return [
+    ...(householdId
+      ? [{ href: `/app/${householdId}/household`, label: "Household", icon: Users }]
+      : []),
+    { href: "/app/settings/security", label: "Security", icon: Shield },
+  ];
+}
 
 /**
  * Navigation links with a highlight that GLIDES to the active item (a shared

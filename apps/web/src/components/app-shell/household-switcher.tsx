@@ -1,13 +1,28 @@
 "use client";
 
-import { Check, ChevronsUpDown, Home } from "lucide-react";
+import { Check, ChevronsUpDown, Home, Plus } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, Input } from "@/components/ui/field";
+import { errorMessage } from "@/lib/api/errors";
+import { useCreateHousehold } from "@/lib/query/household";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMe } from "@/lib/query/hooks";
@@ -18,6 +33,7 @@ export function HouseholdSwitcher() {
   const current = useCurrentHousehold();
   const router = useRouter();
   const pathname = usePathname();
+  const [creating, setCreating] = useState(false);
 
   /** Keep the same section (e.g. /accounts) when switching household. */
   function switchTo(householdId: string) {
@@ -49,7 +65,87 @@ export function HouseholdSwitcher() {
             {household.id === current?.id && <Check className="!text-primary" />}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setCreating(true)}>
+          <Plus /> New household
+        </DropdownMenuItem>
       </DropdownMenuContent>
+      <NewHouseholdDialog
+        open={creating}
+        onOpenChange={setCreating}
+        onCreated={(id) => router.push(`/app/${id}`)}
+        existing={me?.households.map((h) => h.id) ?? []}
+      />
     </DropdownMenu>
+  );
+}
+
+/** A second household — e.g. a side business, or finances shared with a parent. */
+function NewHouseholdDialog({
+  open,
+  onOpenChange,
+  onCreated,
+  existing,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (householdId: string) => void;
+  existing: string[];
+}) {
+  const create = useCreateHousehold();
+  const [name, setName] = useState("");
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form
+          className="grid gap-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            create.mutate(
+              {
+                name: name.trim(),
+                baseCurrency: "USD",
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              },
+              {
+                onSuccess: (me) => {
+                  const created = me.households.find((h) => !existing.includes(h.id));
+                  onOpenChange(false);
+                  setName("");
+                  toast.success(`Created ${name.trim()}`);
+                  if (created) onCreated(created.id);
+                },
+                onError: (error) => toast.error(errorMessage(error)),
+              },
+            );
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>New household</DialogTitle>
+            <DialogDescription>
+              Separate money, separate members — e.g. a side business. You can switch any time.
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Name">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Studio Rivera"
+              autoFocus
+              maxLength={100}
+            />
+          </Field>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={create.isPending || !name.trim()}>
+              Create household
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

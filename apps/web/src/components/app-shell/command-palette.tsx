@@ -120,7 +120,7 @@ export function CommandPalette({
 
               {household && (
                 <Command.Group heading="Go to">
-                  {[...householdNav(household.id), ...settingsNav].map((item) => (
+                  {[...householdNav(household.id), ...settingsNav(household.id)].map((item) => (
                     <PaletteItem
                       key={item.href}
                       icon={item.icon}

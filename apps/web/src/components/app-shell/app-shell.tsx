@@ -10,6 +10,7 @@ import { useNotificationToasts, useOverBudgetCount } from "@/lib/use-alerts";
 import { CommandPalette } from "./command-palette";
 import { useCurrentHousehold } from "./household-context";
 import { HouseholdSwitcher } from "./household-switcher";
+import { LiveStatus } from "./live-status";
 import { NavList, householdNav, settingsNav } from "./nav";
 import { NotificationBell } from "./notification-bell";
 import { UserMenu } from "./user-menu";
@@ -34,6 +35,7 @@ function SidebarContents({
         {!onNavigate && <NotificationBell />}
       </div>
       <HouseholdSwitcher />
+      <LiveStatus />
       <button
         type="button"
         onClick={onOpenPalette}
@@ -51,7 +53,7 @@ function SidebarContents({
           <p className="px-3 text-caption font-medium tracking-wide text-muted-foreground uppercase">
             Settings
           </p>
-          <NavList items={settingsNav} onNavigate={onNavigate} />
+          <NavList items={settingsNav(household?.id)} onNavigate={onNavigate} />
         </div>
       </nav>
       <div className="mt-auto">

@@ -129,7 +129,19 @@ export async function seedDemoData(
     if (!user || !household) throw new Error("Seeding failed to create the demo user");
     const householdId = household.id;
 
-    await tx.insert(householdMembers).values({ householdId, userId: user.id, role: "owner" });
+    // A partner, so the household is genuinely shared (Stage 11: members, real-time).
+    const [partner] = await tx
+      .insert(users)
+      .values({
+        email: "jamie@ledgerly.app",
+        displayName: "Jamie Rivera",
+        passwordHash: DEMO_PASSWORD_HASH,
+      })
+      .returning();
+    await tx.insert(householdMembers).values([
+      { householdId, userId: user.id, role: "owner" },
+      { householdId, userId: partner!.id, role: "editor" },
+    ]);
 
     const insertedAccounts = await tx
       .insert(accounts)
@@ -427,6 +439,11 @@ export async function seedDemoData(
       targetDate,
     });
 
-    return { userId: user.id, householdId, transactionCount: withPayments.length };
+    return {
+      userId: user.id,
+      partnerId: partner!.id,
+      householdId,
+      transactionCount: withPayments.length,
+    };
   });
 }

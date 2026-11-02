@@ -17,13 +17,14 @@ export function safeNext(next: string | null | undefined): string {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
 }
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, email }: { next?: string; email?: string }) {
   const router = useRouter();
   const login = useLogin();
   const form = useForm<z.input<typeof LoginSchema>, unknown, LoginInput>({
     resolver: zodResolver(LoginSchema),
     mode: "onTouched",
-    defaultValues: { email: "", password: "" },
+    // ?email= comes from an invitation link: the account it was sent to.
+    defaultValues: { email: email ?? "", password: "" },
   });
   const { errors } = form.formState;
 
@@ -61,7 +62,11 @@ export function LoginForm({ next }: { next?: string }) {
       <p className="text-center text-sm text-muted-foreground">
         New to Ledgerly?{" "}
         <Link
-          href="/signup"
+          href={
+            next
+              ? `/signup?next=${encodeURIComponent(next)}${email ? `&email=${encodeURIComponent(email)}` : ""}`
+              : "/signup"
+          }
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
           Create an account

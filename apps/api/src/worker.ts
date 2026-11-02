@@ -37,7 +37,7 @@ const database = createDb({
 const worker = new Worker({
   db: database.db,
   pool: database.pool,
-  definitions: jobDefinitions({ appUrl: env.APP_URL }),
+  definitions: jobDefinitions({ appUrl: env.APP_URL, encryptionKey: env.ENCRYPTION_KEY }),
   schedules,
   mailer: new LogMailer(log),
   log,

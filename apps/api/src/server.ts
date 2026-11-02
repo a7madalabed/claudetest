@@ -16,7 +16,7 @@ const database = createDb({
   maxConnections: env.DATABASE_POOL_MAX,
   applicationName: "ledgerly-api",
 });
-const app = await buildApp(env, { db: database.db, closeDb: database.close });
+const app = await buildApp(env, { db: database.db, closeDb: database.close, pool: database.pool });
 
 /**
  * Graceful shutdown: when the platform asks us to stop (SIGTERM during a deploy,

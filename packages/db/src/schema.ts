@@ -210,6 +210,45 @@ export const householdMembers = pgTable(
   ],
 );
 
+// ─── Invitations ─────────────────────────────────────────────────────────────
+
+/**
+ * "Alex invited jamie@example.com to Alex's Household as an editor."
+ * The link carries a random token; only its SHA-256 HASH is stored (like
+ * session tokens, Stage 5), so a database leak doesn't leak working links.
+ * An invitation is bound to an EMAIL: a forwarded link is useless to anyone
+ * signed in with a different address.
+ */
+export const householdInvitations = pgTable(
+  "household_invitations",
+  {
+    id: id(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: householdRole("role").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    invitedBy: uuid("invited_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedBy: uuid("accepted_by").references(() => users.id, { onDelete: "set null" }),
+    declinedAt: timestamp("declined_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("household_invitations_token_hash_key").on(t.tokenHash),
+    // At most one OPEN invitation per person per household.
+    uniqueIndex("household_invitations_open_email_key")
+      .on(t.householdId, sql`lower(${t.email})`)
+      .where(sql`${t.acceptedAt} is null and ${t.declinedAt} is null and ${t.revokedAt} is null`),
+    index("household_invitations_household_idx").on(t.householdId),
+    // New members join as editors or viewers; ownership is granted later, deliberately.
+    check("household_invitations_role", sql`${t.role} in ('editor', 'viewer')`),
+  ],
+);
+
 // ─── Accounts (bank accounts, cards, cash…) ──────────────────────────────────
 
 export const accounts = pgTable(
@@ -740,3 +779,4 @@ export type Job = typeof jobs.$inferSelect;
 export type Import = typeof imports.$inferSelect;
 export type RecurringRule = typeof recurringRules.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type HouseholdInvitation = typeof householdInvitations.$inferSelect;

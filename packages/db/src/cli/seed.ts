@@ -19,6 +19,7 @@ try {
   const result = await seedDemoData(db);
   console.log(`✅ Seeded demo household with ${result.transactionCount} transactions`);
   console.log(`   Demo user: demo@ledgerly.app (household ${result.householdId})`);
+  console.log("   Partner:   jamie@ledgerly.app (same password, editor)");
 } finally {
   await close();
 }

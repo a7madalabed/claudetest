@@ -52,6 +52,11 @@ const EnvSchema = z
     SESSION_IDLE_DAYS: z.coerce.number().int().min(1).max(90).default(14),
     /** Where the web app lives — for links in emails ("open your budgets"). */
     APP_URL: z.url().default("http://localhost:3000"),
+    /**
+     * Live streams send a heartbeat this often: proxies close connections that
+     * stay silent too long (often 60 s), and each beat re-checks the session.
+     */
+    REALTIME_HEARTBEAT_MS: z.coerce.number().int().min(100).max(60_000).default(25_000),
     /** How many jobs one worker process runs at the same time. */
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(4),
     /** Serve /docs and /openapi.json. */

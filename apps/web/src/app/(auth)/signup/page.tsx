@@ -3,7 +3,12 @@ import { SignupForm } from "@/components/auth/signup-form";
 
 export const metadata: Metadata = { title: "Create your account" };
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; email?: string }>;
+}) {
+  const { next, email } = await searchParams;
   return (
     <div className="animate-rise space-y-8">
       <div className="space-y-2">
@@ -12,7 +17,7 @@ export default function SignupPage() {
           Start with a household of your own — invite others later.
         </p>
       </div>
-      <SignupForm />
+      <SignupForm next={next} email={email} />
     </div>
   );
 }

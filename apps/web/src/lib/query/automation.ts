@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "../api/client";
+import { useIsLive } from "../realtime";
 
 const base = (householdId: string) => `/v1/households/${householdId}`;
 
@@ -40,18 +41,19 @@ export function useImports(householdId: string) {
 }
 
 /**
- * One import. While it's running, ask again every 700 ms ("polling") — simple,
- * works through every proxy and firewall, and good enough for a progress bar.
- * Stage 11 replaces polling with the server PUSHING updates.
+ * One import. Progress arrives as live events (each chunk the worker commits
+ * fires an "imports" change). If the live connection is down, fall back to
+ * asking every 700 ms — slower and chattier, but it always works.
  */
 export function useImport(householdId: string, importId: string | null) {
+  const live = useIsLive();
   return useQuery({
     queryKey: automationKeys.import(householdId, importId ?? "none"),
     queryFn: ({ signal }) =>
       api(`${base(householdId)}/imports/${importId}`, { schema: ImportSchema, signal }),
     enabled: Boolean(importId),
     refetchInterval: (query) =>
-      query.state.data && RUNNING.includes(query.state.data.status) ? 700 : false,
+      !live && query.state.data && RUNNING.includes(query.state.data.status) ? 700 : false,
   });
 }
 
@@ -163,16 +165,16 @@ export const useDeleteRule = (householdId: string) =>
 // ─── Notifications ───────────────────────────────────────────────────────────
 
 /**
- * Notifications are created by background jobs, so nothing in THIS tab knows
- * when one appears. We poll every 15 s — only while the tab is visible
- * (TanStack Query pauses intervals in background tabs) — and right after the
- * user changes data (that's when new alerts are most likely).
+ * Notifications are created by background jobs; the live stream tells us the
+ * moment one is ours. Without a live connection, poll every 30 s instead
+ * (TanStack Query pauses intervals in background tabs).
  */
 export function useNotifications() {
+  const live = useIsLive();
   return useQuery({
     queryKey: automationKeys.notifications,
     queryFn: ({ signal }) => api("/v1/notifications", { schema: NotificationListSchema, signal }),
-    refetchInterval: 15_000,
+    refetchInterval: live ? false : 30_000,
   });
 }
 

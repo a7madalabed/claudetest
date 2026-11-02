@@ -2,6 +2,7 @@ import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { getMe } from "@/lib/api/me";
+import { RealtimeProvider } from "@/lib/realtime";
 import { queryKeys } from "@/lib/query/keys";
 
 /**
@@ -17,7 +18,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <AppShell>{children}</AppShell>
+      <RealtimeProvider>
+        <AppShell>{children}</AppShell>
+      </RealtimeProvider>
     </HydrationBoundary>
   );
 }

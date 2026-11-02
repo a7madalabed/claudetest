@@ -47,7 +47,10 @@ describe("budget notifications", () => {
         link: `/app/${ctx.fixtures.householdId}/budgets`,
       });
     }
-    expect(runner.mailer.sent.map((m) => m.to).sort()).toEqual([OWNER, VIEWER].sort());
+    // Every member — including Jamie, the seeded partner.
+    expect(runner.mailer.sent.map((m) => m.to).sort()).toEqual(
+      [OWNER, "jamie@ledgerly.app", VIEWER].sort(),
+    );
     expect(runner.mailer.sent[0]!.text).toContain("http://localhost:3000/app/");
 
     // More spending, another evaluation: still ONE "over" notification per person.
