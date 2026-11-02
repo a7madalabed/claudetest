@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import {
   Briefcase,
   Car,
@@ -35,3 +36,18 @@ const icons: Record<string, LucideIcon> = {
 
 export const categoryIcon = (name: string | null | undefined): LucideIcon =>
   (name && icons[name]) || Tag;
+
+/**
+ * Renders a category's icon. Using a component (instead of `const Icon = categoryIcon(…)`
+ * inside render) keeps React's compiler happy: it can see the component identity
+ * comes from a fixed module-level table and won't change between renders.
+ */
+export function CategoryIcon({
+  name,
+  className,
+}: {
+  name: string | null | undefined;
+  className?: string;
+}) {
+  return createElement((name && icons[name]) || Tag, { className, "aria-hidden": true });
+}

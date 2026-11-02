@@ -14,15 +14,18 @@ export const SheetTitle = Primitive.Title;
 export function SheetContent({
   className,
   children,
+  side = "left",
   ...props
-}: ComponentProps<typeof Primitive.Content>) {
+}: ComponentProps<typeof Primitive.Content> & { side?: "left" | "right" }) {
   return (
     <Primitive.Portal>
       <Primitive.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=closed]:animate-overlay-out data-[state=open]:animate-overlay-in" />
       <Primitive.Content
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border bg-background shadow-elevation-3",
-          "data-[state=closed]:animate-sheet-out data-[state=open]:animate-sheet-in",
+          "fixed inset-y-0 z-50 flex w-72 max-w-[85vw] flex-col border-border bg-background shadow-elevation-3",
+          side === "left"
+            ? "left-0 border-r data-[state=closed]:animate-sheet-out data-[state=open]:animate-sheet-in"
+            : "right-0 border-l data-[state=closed]:animate-sheet-out-right data-[state=open]:animate-sheet-in-right",
           className,
         )}
         {...props}

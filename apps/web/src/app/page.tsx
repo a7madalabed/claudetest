@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // Always render on request so the API status is live, not frozen at build time.
 export const dynamic = "force-dynamic";
 
-const CURRENT_STAGE = 6;
+const CURRENT_STAGE = 7;
 
 const stages = [
   "Foundations & architecture",
@@ -38,7 +38,7 @@ export default function HomePage() {
 
       <header className="animate-rise space-y-4">
         <p className="font-mono text-caption tracking-widest text-primary uppercase">
-          Stage {CURRENT_STAGE} · App shell
+          Stage {CURRENT_STAGE} · Transactions
         </p>
         <h1 className="text-display">Ledgerly</h1>
         <p className="max-w-prose text-lg text-pretty text-muted-foreground">

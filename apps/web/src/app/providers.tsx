@@ -31,7 +31,9 @@ export function Providers({ children }: { children: ReactNode }) {
           </TooltipProvider>
         </MotionConfig>
       </ThemeProvider>
-      <ReactQueryDevtools initialIsOpen={false} buttonPosition="top-right" />
+      {/* Dev-only (tree-shaken from production builds). "relative" renders its toggle
+          in the page flow instead of floating over the UI. */}
+      <ReactQueryDevtools initialIsOpen={false} buttonPosition="relative" />
     </QueryClientProvider>
   );
 }

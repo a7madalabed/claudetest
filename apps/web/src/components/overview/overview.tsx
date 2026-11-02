@@ -21,7 +21,7 @@ import { Amount, AnimatedMoney } from "@/components/money";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { categoryIcon } from "@/lib/category-icons";
+import { CategoryIcon } from "@/lib/category-icons";
 import { formatDay, formatMonth, monthRange } from "@/lib/dates";
 import { fadeUp, spring, stagger } from "@/lib/motion";
 import {
@@ -272,7 +272,6 @@ export function TransactionList({
     <motion.ul variants={stagger(0.03)} initial="hidden" animate="visible" className="px-2 pb-2">
       {transactions.map((t) => {
         const category = t.categoryId ? categoryById.get(t.categoryId) : undefined;
-        const Icon = t.transferId ? ArrowLeftRight : categoryIcon(parentOf(category)?.icon);
         return (
           <motion.li
             key={t.id}
@@ -280,7 +279,11 @@ export function TransactionList({
             className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/50"
           >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-              <Icon className="size-4" />
+              {t.transferId ? (
+                <ArrowLeftRight className="size-4" />
+              ) : (
+                <CategoryIcon name={parentOf(category)?.icon} className="size-4" />
+              )}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">{t.description}</span>

@@ -30,7 +30,9 @@ export function Page({
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-headline">{title}</h1>
-          {description && <p className="text-muted-foreground">{description}</p>}
+          {/* A <div>, not a <p>: descriptions may contain block elements (e.g. a
+              loading skeleton), and <div> inside <p> is invalid HTML that breaks hydration. */}
+          {description && <div className="text-muted-foreground">{description}</div>}
         </div>
         {actions && <div className="flex gap-2">{actions}</div>}
       </header>

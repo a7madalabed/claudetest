@@ -1,11 +1,15 @@
 import {
+  BulkTransactionActionSchema,
+  BulkTransactionResultSchema,
   CreateTransactionSchema,
   CreateTransferSchema,
   HouseholdParamsSchema,
   IdSchema,
   TransactionListQuerySchema,
+  TransactionFilterSchema,
   TransactionPageSchema,
   TransactionSchema,
+  TransactionSummarySchema,
   TransferSchema,
   UpdateTransactionSchema,
 } from "@ledgerly/shared";
@@ -50,7 +54,7 @@ export const transactionRoutes: FastifyPluginAsyncZod = async (app) => {
         params: HouseholdParamsSchema,
         headers: IdempotencyHeaders,
         body: CreateTransactionSchema,
-        response: { 201: TransactionSchema, ...commonProblems, ...problems(422) },
+        response: { 201: TransactionSchema, ...commonProblems, ...problems(409, 422) },
       },
     },
     async (request, reply) => {
@@ -62,6 +66,40 @@ export const transactionRoutes: FastifyPluginAsyncZod = async (app) => {
         .header("location", `/v1/households/${ctx.householdId}/transactions/${transaction.id}`)
         .send(transaction);
     },
+  );
+
+  // Registered BEFORE "/transactions/:transactionId" for readability; Fastify's router
+  // matches static segments ("summary", "bulk") ahead of parameters anyway.
+  app.get(
+    "/transactions/summary",
+    {
+      schema: {
+        tags,
+        summary: "Count and totals for the same filters as the list",
+        params: HouseholdParamsSchema,
+        querystring: TransactionFilterSchema,
+        response: { 200: TransactionSummarySchema, ...commonProblems },
+      },
+    },
+    async (request) =>
+      service.summarizeTransactions(app.db, request.params.householdId, request.query),
+  );
+
+  app.post(
+    "/transactions/bulk",
+    {
+      schema: {
+        tags,
+        summary: "Delete or re-categorise up to 500 transactions atomically",
+        params: HouseholdParamsSchema,
+        body: BulkTransactionActionSchema,
+        response: { 200: BulkTransactionResultSchema, ...commonProblems, ...problems(422) },
+      },
+    },
+    async (request) =>
+      app.db.transaction((tx) =>
+        service.bulkTransactions(tx, request.params.householdId, request.body),
+      ),
   );
 
   app.get(

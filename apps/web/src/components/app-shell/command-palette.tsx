@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Home, LogOut, Monitor, Moon, Search, Sun, type LucideIcon } from "lucide-react";
+import { Home, LogOut, Monitor, Moon, Plus, Search, Sun, type LucideIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "radix-ui";
@@ -72,6 +72,18 @@ export function CommandPalette({
               <Command.Empty className="py-10 text-center text-sm text-muted-foreground">
                 No results.
               </Command.Empty>
+
+              {household && (
+                <Command.Group heading="Actions">
+                  <PaletteItem
+                    icon={Plus}
+                    keywords={["add", "expense", "income", "record"]}
+                    onSelect={run(() => router.push(`/app/${household.id}/transactions?new=1`))}
+                  >
+                    New transaction
+                  </PaletteItem>
+                </Command.Group>
+              )}
 
               {household && (
                 <Command.Group heading="Go to">
