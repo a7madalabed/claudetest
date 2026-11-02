@@ -29,8 +29,22 @@ const EnvSchema = z
       .refine((key) => key.length === 32, "ENCRYPTION_KEY must decode to exactly 32 bytes"),
     /** Mark cookies `Secure` (sent over HTTPS only). Defaults to true in production. */
     COOKIE_SECURE: booleanString.optional(),
-    /** Trust X-Forwarded-For from a load balancer to learn the real client IP. */
-    TRUST_PROXY: booleanString.default(false),
+    /**
+     * How many proxies in front of the API to trust for the client's real IP
+     * (X-Forwarded-For). "false" = none (the socket address is the client),
+     * a number = that many hops (e.g. 1 for the Next.js proxy, 2 for a load
+     * balancer + Next.js), or a comma-separated list of trusted proxy IPs.
+     * Trusting MORE hops than really exist lets clients forge their IP.
+     */
+    TRUST_PROXY: z
+      .string()
+      .default("false")
+      .transform((value): boolean | string | ((address: string, hop: number) => boolean) => {
+        if (value === "false" || value === "true") return value === "true";
+        // "Trust the nearest N proxies" — hop 0 is the socket peer, hop 1 the next one…
+        if (/^\d+$/.test(value)) return (_address, hop) => hop < Number(value);
+        return value; // comma-separated IP list
+      }),
     RATE_LIMIT_ENABLED: booleanString.default(true),
     /** Absolute session lifetime: users must sign in again after this, however active. */
     SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),

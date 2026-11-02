@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // Always render on request so the API status is live, not frozen at build time.
 export const dynamic = "force-dynamic";
 
-const CURRENT_STAGE = 2;
+const CURRENT_STAGE = 6;
 
 const stages = [
   "Foundations & architecture",
@@ -38,18 +38,26 @@ export default function HomePage() {
 
       <header className="animate-rise space-y-4">
         <p className="font-mono text-caption tracking-widest text-primary uppercase">
-          Stage {CURRENT_STAGE} · Design system
+          Stage {CURRENT_STAGE} · App shell
         </p>
         <h1 className="text-display">Ledgerly</h1>
         <p className="max-w-prose text-lg text-pretty text-muted-foreground">
           Your money, beautifully organised. The web app, API and shared package are wired together,
           and every pixel now comes from a tested design system.
         </p>
-        <Button asChild size="lg" className="mt-2">
-          <Link href="/design">
-            Explore the design system <ArrowRight />
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-3 pt-2">
+          <Button asChild size="lg">
+            <Link href="/signup">
+              Get started <ArrowRight />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/login">Sign in</Link>
+          </Button>
+          <Button asChild size="lg" variant="ghost">
+            <Link href="/design">Design system</Link>
+          </Button>
+        </div>
       </header>
 
       <section className="animate-rise [animation-delay:120ms]">

@@ -167,6 +167,8 @@
   --animate-dialog-out: dialog-out 150ms ease-in;
   --animate-pop-in: pop-in 160ms var(--ease-out-quint);
   --animate-pop-out: fade-out 100ms ease-in;
+  --animate-sheet-in: sheet-in 320ms var(--ease-out-expo);
+  --animate-sheet-out: sheet-out 200ms ease-in;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 
   @keyframes rise {
@@ -215,6 +217,16 @@
     from {
       opacity: 0;
       transform: scale(0.96) translateY(2px);
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes sheet-out {
+    to {
+      transform: translateX(-100%);
     }
   }
   @keyframes shimmer {

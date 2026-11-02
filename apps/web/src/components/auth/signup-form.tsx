@@ -1,0 +1,89 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { SignupSchema, type SignupInput } from "@ledgerly/shared";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useForm, useWatch } from "react-hook-form";
+import type { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/field";
+import { PasswordInput } from "@/components/ui/password-input";
+import { isApiError } from "@/lib/api/errors";
+import { useSignup } from "@/lib/query/hooks";
+import { FormAlert } from "./form-alert";
+import { PasswordStrength } from "./password-strength";
+
+export function SignupForm() {
+  const router = useRouter();
+  const signup = useSignup();
+  // The SAME schema the API validates with: identical rules, instant feedback.
+  const form = useForm<z.input<typeof SignupSchema>, unknown, SignupInput>({
+    resolver: zodResolver(SignupSchema),
+    mode: "onTouched",
+    defaultValues: { displayName: "", email: "", password: "" },
+  });
+  const { errors } = form.formState;
+  // useWatch subscribes to ONE field, so typing re-renders only what depends on it.
+  const password = useWatch({ control: form.control, name: "password" });
+
+  const onSubmit = form.handleSubmit((values) =>
+    signup.mutate(values, {
+      onSuccess: (me) => {
+        router.replace(`/app/${me.households[0]!.id}`);
+        router.refresh();
+      },
+      onError: (error) => {
+        // Put server-side field errors (weak password, email taken) on the right field.
+        if (isApiError(error)) {
+          for (const field of ["email", "password", "displayName"] as const) {
+            const message =
+              error.code === "email_taken" && field === "email"
+                ? error.detail
+                : error.fieldError(field);
+            if (message) form.setError(field, { message }, { shouldFocus: true });
+          }
+        }
+      },
+    }),
+  );
+
+  const fieldLevel =
+    isApiError(signup.error) &&
+    (signup.error.fieldErrors.length > 0 || signup.error.code === "email_taken");
+
+  return (
+    <form onSubmit={onSubmit} noValidate className="grid gap-4">
+      <FormAlert error={fieldLevel ? null : signup.error} />
+      <Field label="Your name" error={errors.displayName?.message}>
+        <Input
+          autoComplete="name"
+          autoFocus
+          placeholder="Alex Rivera"
+          {...form.register("displayName")}
+        />
+      </Field>
+      <Field label="Email" error={errors.email?.message}>
+        <Input
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          {...form.register("email")}
+        />
+      </Field>
+      <Field label="Password" error={errors.password?.message}>
+        <PasswordInput autoComplete="new-password" {...form.register("password")} />
+      </Field>
+      <PasswordStrength password={password} />
+      <Button type="submit" size="lg" loading={signup.isPending} className="mt-2 w-full">
+        Create account
+      </Button>
+      <p className="text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </form>
+  );
+}

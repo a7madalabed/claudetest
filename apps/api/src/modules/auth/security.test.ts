@@ -1,4 +1,4 @@
-import { DEMO_PASSWORD } from "@ledgerly/db";
+import { DEMO_PASSWORD, desc, sessions } from "@ledgerly/db";
 import { describe, expect, it } from "vitest";
 import { OWNER, request, useTestApp } from "../../test/helpers.js";
 
@@ -73,5 +73,50 @@ describe("rate limiting", () => {
       payload: { email: "someone@example.com", password: "x" },
     });
     expect(other.statusCode).toBe(401);
+  });
+});
+
+describe("client IP behind proxies", () => {
+  const loginFrom = (app: Parameters<typeof request>[0], forwardedFor: string) =>
+    app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      headers: { "x-forwarded-for": forwardedFor },
+      payload: { email: OWNER, password: DEMO_PASSWORD },
+    });
+
+  describe("with TRUST_PROXY=1 (one proxy: the Next.js /api rewrite)", () => {
+    const ctx = useTestApp({ TRUST_PROXY: "1" });
+    it("records the address the proxy reports", async () => {
+      await loginFrom(ctx.app, "203.0.113.7");
+      const [session] = await ctx.db
+        .select()
+        .from(sessions)
+        .orderBy(desc(sessions.createdAt))
+        .limit(1);
+      expect(session!.ipAddress).toBe("203.0.113.7");
+    });
+    it("ignores addresses a client forged further left in the chain", async () => {
+      await loginFrom(ctx.app, "6.6.6.6, 203.0.113.7");
+      const [session] = await ctx.db
+        .select()
+        .from(sessions)
+        .orderBy(desc(sessions.createdAt))
+        .limit(1);
+      expect(session!.ipAddress).toBe("203.0.113.7");
+    });
+  });
+
+  describe("with TRUST_PROXY=false", () => {
+    const ctx = useTestApp({ TRUST_PROXY: "false" });
+    it("ignores X-Forwarded-For entirely", async () => {
+      await loginFrom(ctx.app, "203.0.113.7");
+      const [session] = await ctx.db
+        .select()
+        .from(sessions)
+        .orderBy(desc(sessions.createdAt))
+        .limit(1);
+      expect(session!.ipAddress).toBe("127.0.0.1");
+    });
   });
 });

@@ -13,7 +13,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 3   | [Database design](./docs/stage-03-database-design.md)                         | ✅ Done |
 | 4   | [Backend API](./docs/stage-04-backend-api.md)                                 | ✅ Done |
 | 5   | [Authentication & security](./docs/stage-05-authentication-and-security.md)   | ✅ Done |
-| 6   | Frontend app shell                                                            | ⏳      |
+| 6   | [Frontend app shell](./docs/stage-06-frontend-app-shell.md)                   | ✅ Done |
 | 7   | Transactions                                                                  | ⏳      |
 | 8   | Dashboard & charts                                                            | ⏳      |
 | 9   | Budgets & goals                                                               | ⏳      |
@@ -64,7 +64,7 @@ pnpm db:up && pnpm db:migrate && pnpm db:seed
 pnpm dev
 ```
 
-Then open http://localhost:3000 (and the living style guide at http://localhost:3000/design). The API runs on http://localhost:4000 (try http://localhost:4000/health and http://localhost:4000/health/ready).
+Then open http://localhost:3000 and sign in with **demo@ledgerly.app** / **correct-horse-ledger** (or create your own account). The living style guide is at http://localhost:3000/design. The API runs on http://localhost:4000 (try http://localhost:4000/health and http://localhost:4000/health/ready).
 
 Interactive API documentation lives at **http://localhost:4000/docs**. Sign in through `POST /v1/auth/login` with the demo account **demo@ledgerly.app** / **correct-horse-ledger** (the docs page keeps the session cookie for you).
 
