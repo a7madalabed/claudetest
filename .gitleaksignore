@@ -1,0 +1,8 @@
+# Findings reviewed by a person and confirmed NOT to be secrets. Each line is a
+# gitleaks fingerprint: <commit>:<file>:<rule>:<line>. Ignoring by fingerprint
+# silences exactly that one finding; the rule keeps checking everything else.
+#
+# docs/stage-04-backend-api.md:404 — an EXAMPLE `Idempotency-Key` request header
+# (a made-up per-request UUID) in the Stage 4 doc. Matched the broad
+# generic-api-key rule because the word "Key" precedes a random-looking value.
+8228b74777852f6f4fb9b20a335bb477c8a58f09:docs/stage-04-backend-api.md:generic-api-key:404

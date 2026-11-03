@@ -147,10 +147,12 @@ jobs:
           fetch-depth: 0 # full history, so the secret scan sees every commit
 
       - uses: pnpm/action-setup@v4
+      # No `cache: pnpm` here: this job never installs packages (`pnpm audit` only
+      # reads the lockfile), so there's no package store to save, and setup-node's
+      # post-job cache step FAILS the job when the folder doesn't exist.
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: pnpm
 
       # Known vulnerabilities in the packages we ship (A06: vulnerable components).
       - run: pnpm audit --prod --audit-level=high
