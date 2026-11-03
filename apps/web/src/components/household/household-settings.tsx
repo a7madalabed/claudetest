@@ -13,7 +13,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, NativeSelect } from "@/components/ui/field";
 import { Select, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api/errors";
@@ -36,9 +36,16 @@ const ROLE_HINT: Record<HouseholdRole, string> = {
   viewer: "Sees everything, changes nothing",
 };
 
+/*
+ * Every IANA zone the browser knows — plus "UTC", which supportedValuesOf()
+ * leaves out (it lists geographic zones only). Without it, a household in UTC
+ * (the default) showed "Africa/Abidjan", the first option: a <select> whose
+ * value isn't among its options displays the first one. Found by an e2e
+ * screenshot in Stage 13.
+ */
 const zones = (() => {
   try {
-    return Intl.supportedValuesOf("timeZone");
+    return ["UTC", ...Intl.supportedValuesOf("timeZone").filter((zone) => zone !== "UTC")];
   } catch {
     return ["UTC"];
   }
@@ -360,7 +367,7 @@ function GeneralCard({ householdId, editable }: { householdId: string; editable:
         label="Time zone"
         description="Decides when “today” starts for scheduled transactions and monthly budgets."
       >
-        <select
+        <NativeSelect
           value={household?.timeZone ?? "UTC"}
           disabled={!editable}
           onChange={(e) =>
@@ -372,14 +379,13 @@ function GeneralCard({ householdId, editable }: { householdId: string; editable:
               },
             )
           }
-          className="h-10 w-full rounded-lg border border-input bg-surface px-3 text-sm shadow-elevation-1 outline-none focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20 disabled:opacity-50"
         >
           {zones.map((zone) => (
             <option key={zone} value={zone}>
               {zone.replaceAll("_", " ")}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
     </Card>
   );

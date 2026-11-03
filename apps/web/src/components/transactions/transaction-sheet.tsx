@@ -133,6 +133,17 @@ export function TransactionSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when (re)opening
   }, [open, mode]);
 
+  // Opened before the accounts arrived (a quick "N" right after the page loads)?
+  // Fill in the default account when they do — but never overwrite a choice.
+  // Found as a flaky end-to-end test in Stage 13.
+  useEffect(() => {
+    if (!open || form.getValues("accountId")) return;
+    const fallback = defaults(mode, activeAccounts).accountId;
+    if (fallback) {
+      form.setValue("accountId", fallback, { shouldValidate: form.formState.isSubmitted });
+    }
+  }, [open, mode, activeAccounts, form]);
+
   const editing = mode.type === "edit" ? mode.transaction : null;
   const lockedTransfer = Boolean(editing?.transferId);
   const currency = accounts?.find((a) => a.id === accountId)?.currency ?? "USD";

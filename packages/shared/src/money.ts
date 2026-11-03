@@ -48,14 +48,29 @@ export function sumMinorUnits(amounts: readonly MinorUnits[]): MinorUnits {
  * formatMoney(-500, "EUR", "de-DE")   → "-5,00 €"
  */
 export function formatMoney(amount: MinorUnits, currency: string, locale = "en-US"): string {
-  assertMinorUnits(amount);
   const decimals = currencyDecimals(currency);
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  }).format(amount / 10 ** decimals);
+    // A decimal STRING, not amount / 100: Intl formats strings exactly, while the
+    // division is a float and can be a cent off for large amounts (Stage 13).
+  }).format(minorToDecimal(amount, currency) as Intl.StringNumericLiteral);
+}
+
+/**
+ * 123456 → "1234.56", -5 → "-0.05", 1500 JPY → "1500". Done with string
+ * operations on the integer's digits, so it is exact for every safe integer —
+ * dividing by 10 ** decimals is not (7059166453011543 / 100 rounds up a cent).
+ */
+export function minorToDecimal(amount: MinorUnits, currency: string): string {
+  assertMinorUnits(amount);
+  const decimals = currencyDecimals(currency);
+  const digits = String(Math.abs(amount)).padStart(decimals + 1, "0");
+  const sign = amount < 0 ? "-" : "";
+  if (decimals === 0) return sign + digits;
+  return `${sign}${digits.slice(0, -decimals)}.${digits.slice(-decimals)}`;
 }
 
 /**

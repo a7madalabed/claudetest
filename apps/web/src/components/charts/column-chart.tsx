@@ -81,7 +81,9 @@ export function ColumnChart<T extends { month: string }>({
         <svg
           width={width}
           height={PLOT_HEIGHT + MARGIN.top + AXIS_BAND}
-          role="img"
+          // A labelled group of labelled columns (role="img" here would hide the
+          // focusable columns below from screen readers — Stage 13).
+          role="group"
           aria-label={`Column chart of ${series.map((s) => s.label).join(" and ")} by month`}
         >
           <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
@@ -161,6 +163,7 @@ export function ColumnChart<T extends { month: string }>({
                     height={PLOT_HEIGHT}
                     fill="transparent"
                     tabIndex={0}
+                    role="img"
                     aria-label={`${longMonth(d.month)}: ${series.map((s) => `${s.label} ${fullMoney(Number(d[s.key as keyof T]) || 0, currency)}`).join(", ")}`}
                     onPointerMove={() => setHovered(i)}
                     onFocus={() => setHovered(i)}

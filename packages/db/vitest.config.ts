@@ -8,5 +8,13 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      // Command-line entry points and test helpers aren't the product.
+      exclude: ["src/**/*.test.ts", "src/test/**", "src/cli/**"],
+      // A ratchet, set just under today's numbers: coverage may rise, never quietly fall.
+      thresholds: { statements: 78, branches: 88, functions: 60, lines: 78 },
+    },
   },
 });

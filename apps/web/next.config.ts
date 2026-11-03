@@ -4,6 +4,8 @@ const API_URL = process.env.API_URL ?? "http://localhost:4000";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The end-to-end suite builds into its own folder (e2e/scripts/build-web.ts).
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   // Don't advertise which framework we run (a tiny bit less info for attackers).
   poweredByHeader: false,
   // Dev-only badge: bottom-left keeps it clear of sheet/dialog action buttons.

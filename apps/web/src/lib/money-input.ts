@@ -1,4 +1,4 @@
-import { currencyDecimals } from "@ledgerly/shared";
+import { minorToDecimal } from "@ledgerly/shared";
 
 /*
  * Helpers for money INPUTS. A form holds the amount as the text the user typed;
@@ -7,8 +7,7 @@ import { currencyDecimals } from "@ledgerly/shared";
 
 /** 123450 cents → "1234.50" for editing (the reverse of parseMoney). */
 export function minorToInput(amountMinor: number, currency: string) {
-  const decimals = currencyDecimals(currency);
-  return (Math.abs(amountMinor) / 10 ** decimals).toFixed(decimals);
+  return minorToDecimal(Math.abs(amountMinor), currency);
 }
 
 /** "USD" → "$", "EUR" → "€" — shown inside the amount field. */

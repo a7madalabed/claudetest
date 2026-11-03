@@ -2,6 +2,8 @@ packages:
   - "apps/*"
   - "packages/*"
   - "tools/*"
+  # Stage 13: browser end-to-end tests (Playwright).
+  - "e2e"
 
 # pnpm 10 blocks dependency install scripts by default (a supply-chain safety
 # feature). Only packages listed here may run them.

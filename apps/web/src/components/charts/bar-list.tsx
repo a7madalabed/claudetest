@@ -55,8 +55,10 @@ export function BarList({
                   "group grid w-full grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm",
                   onSelect && "transition-colors hover:bg-muted/60",
                 )}
-                aria-label={`${item.label}: ${fullMoney(item.valueMinor, currency)}, ${Math.round(item.share * 100)}%${item.drillable ? ". Show subcategories" : ""}`}
               >
+                {/* No aria-label: the visible text is the accessible name (WCAG 2.5.3,
+                    "Label in Name"), so voice-control users can say what they see. */}
+                {item.drillable && <span className="sr-only">Show subcategories of </span>}
                 <span className="flex min-w-0 items-center gap-2">
                   <CategoryIcon
                     name={item.icon}

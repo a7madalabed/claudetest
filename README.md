@@ -20,7 +20,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 10  | [Imports & background jobs](./docs/stage-10-imports-and-background-jobs.md)   | ✅ Done |
 | 11  | [Households & real-time](./docs/stage-11-households-and-real-time.md)         | ✅ Done |
 | 12  | [Performance & scalability](./docs/stage-12-performance-and-scalability.md)   | ✅ Done |
-| 13  | Testing strategy                                                              | ⏳      |
+| 13  | [Testing strategy](./docs/stage-13-testing-strategy.md)                       | ✅ Done |
 | 14  | Deployment & operations                                                       | ⏳      |
 
 ## Repository layout
@@ -34,6 +34,7 @@ packages/
   db/         PostgreSQL schema, migrations, queries and seed data (Drizzle ORM)
 docker/       Config for local infrastructure (docker-compose.yml)
 tools/perf/   Performance tooling: big dataset, load tests, Web Vitals (Stage 12)
+e2e/          Browser end-to-end tests with Playwright, incl. accessibility (Stage 13)
 docs/         One document per stage
 ```
 
@@ -73,18 +74,20 @@ Interactive API documentation lives at **http://localhost:4000/docs**. Sign in t
 
 ## Useful commands
 
-| Command            | What it does                                                                          |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| `pnpm dev`         | Runs the web app, the API, the background worker and the shared package in watch mode |
-| `pnpm build`       | Production build of everything                                                        |
-| `pnpm test`        | Runs all tests                                                                        |
-| `pnpm lint`        | Finds likely bugs and bad patterns                                                    |
-| `pnpm typecheck`   | Checks TypeScript types                                                               |
-| `pnpm format`      | Auto-formats every file                                                               |
-| `pnpm check`       | Everything CI runs, in one command                                                    |
-| `pnpm db:up`       | Starts PostgreSQL in Docker (`db:down` stops it)                                      |
-| `pnpm db:migrate`  | Applies pending database migrations                                                   |
-| `pnpm db:seed`     | Replaces local data with a year of realistic demo data                                |
-| `pnpm db:reset`    | Wipes the local database, migrates and seeds                                          |
-| `pnpm db:generate` | Creates a migration after you edit `packages/db/src/schema.ts`                        |
-| `pnpm db:studio`   | Opens Drizzle Studio, a web UI to browse your data                                    |
+| Command              | What it does                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `pnpm dev`           | Runs the web app, the API, the background worker and the shared package in watch mode   |
+| `pnpm build`         | Production build of everything                                                          |
+| `pnpm test`          | Runs the unit and integration tests                                                     |
+| `pnpm test:coverage` | The same, measuring coverage and enforcing each package's minimum                       |
+| `pnpm e2e`           | Builds and starts the whole stack, then runs the browser tests (`pnpm e2e:ui` to watch) |
+| `pnpm lint`          | Finds likely bugs and bad patterns                                                      |
+| `pnpm typecheck`     | Checks TypeScript types                                                                 |
+| `pnpm format`        | Auto-formats every file                                                                 |
+| `pnpm check`         | The fast checks CI runs (format, lint, types, tests), in one command                    |
+| `pnpm db:up`         | Starts PostgreSQL in Docker (`db:down` stops it)                                        |
+| `pnpm db:migrate`    | Applies pending database migrations                                                     |
+| `pnpm db:seed`       | Replaces local data with a year of realistic demo data                                  |
+| `pnpm db:reset`      | Wipes the local database, migrates and seeds                                            |
+| `pnpm db:generate`   | Creates a migration after you edit `packages/db/src/schema.ts`                          |
+| `pnpm db:studio`     | Opens Drizzle Studio, a web UI to browse your data                                      |

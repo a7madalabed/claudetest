@@ -302,9 +302,11 @@ function BudgetRow({
     <button
       type="button"
       onClick={onEdit}
-      aria-label={`Edit ${budget.name} budget`}
       className="block w-full px-5 py-4 text-left transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
     >
+      {/* No aria-label: it would REPLACE the visible amounts and status for screen
+          reader users. The name is "Edit" + everything on the row (Stage 13). */}
+      <span className="sr-only">Edit </span>
       {content}
     </button>
   ) : (

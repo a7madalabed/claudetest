@@ -56,6 +56,15 @@ export function LineChart<T>({
   const plotWidth = Math.max(0, width - MARGIN.left - MARGIN.right);
 
   const valueOf = (d: T, key: string) => d[key as keyof T] as unknown as number | null;
+  const describePoint = (d: T | undefined) =>
+    d === undefined
+      ? undefined
+      : `${xTitle(d)}: ${series
+          .map((s) => {
+            const v = valueOf(d, s.key);
+            return `${s.label} ${v === null ? "no data" : fullMoney(v, currency)}`;
+          })
+          .join(", ")}`;
   const values = data.flatMap((d) =>
     series.map((s) => valueOf(d, s.key)).filter((v): v is number => v !== null),
   );
@@ -105,7 +114,9 @@ export function LineChart<T>({
         <svg
           width={width}
           height={PLOT_HEIGHT + MARGIN.top + AXIS_BAND}
-          role="img"
+          // A labelled GROUP, not role="img": an img's children are hidden from
+          // assistive tech, and the scrubber below must be reachable (Stage 13).
+          role="group"
           aria-label={`Line chart of ${series.map((s) => s.label).join(" and ")}`}
         >
           <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
@@ -243,13 +254,20 @@ export function LineChart<T>({
             )}
 
             {/* The crosshair's hit area is the whole plot. Keyboard users focus it and
-                move the crosshair with ← → (Home/End jump to the ends). */}
+                move the crosshair with ← → (Home/End jump to the ends). To a screen
+                reader it's a SLIDER over the data points: each move announces its
+                value text ("March 2026: Income $5,200.00, Spending $3,100.00"). */}
             <rect
               width={plotWidth}
               height={PLOT_HEIGHT}
               fill="transparent"
               tabIndex={0}
-              aria-label="Chart: use left and right arrow keys to read values"
+              role="slider"
+              aria-label="Read chart values (left and right arrow keys)"
+              aria-valuemin={1}
+              aria-valuemax={data.length}
+              aria-valuenow={(hovered ?? data.length - 1) + 1}
+              aria-valuetext={describePoint(data[hovered ?? data.length - 1])}
               className="outline-none"
               onPointerMove={onPointerMove}
               onPointerDown={onPointerMove}

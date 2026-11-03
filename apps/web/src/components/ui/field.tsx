@@ -56,6 +56,24 @@ export function Field({
   );
 }
 
+/** A native <select>, labelled and described by its surrounding <Field>. */
+export function NativeSelect({ className, ...props }: ComponentProps<"select">) {
+  const field = useContext(FieldContext);
+  return (
+    <select
+      id={field?.id}
+      aria-describedby={field?.describedBy}
+      aria-invalid={field?.invalid || undefined}
+      className={cn(
+        "h-10 w-full rounded-lg border border-input bg-surface px-3 text-sm shadow-elevation-1 outline-none",
+        "focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20 disabled:opacity-50",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 export function Input({
   className,
   prefix,

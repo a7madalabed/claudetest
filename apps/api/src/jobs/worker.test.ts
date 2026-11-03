@@ -8,7 +8,10 @@ import { enqueue } from "./queue.js";
 import { PermanentJobError, defineJob, type JobDefinition } from "./registry.js";
 import { Worker, backoffMs } from "./worker.js";
 
-const { db, close } = createDb({ connectionString: API_TEST_DATABASE_URL, maxConnections: 6 });
+const { db, pool, close } = createDb({
+  connectionString: API_TEST_DATABASE_URL,
+  maxConnections: 6,
+});
 afterAll(() => close());
 beforeEach(() => db.execute(sql`truncate table jobs, job_schedules`));
 
@@ -167,5 +170,133 @@ describe("job queue", () => {
     expect([1, 2, 3, 4].map((n) => backoffMs(n, mid))).toEqual([10_000, 20_000, 40_000, 80_000]);
     expect(backoffMs(30, mid)).toBe(3_600_000);
     expect(backoffMs(1, () => 0)).toBe(5_000);
+  });
+});
+
+/**
+ * The tests above call drain(), which runs jobs one by one on the test's own
+ * schedule. These exercise the real thing — start(), the loop, LISTEN and
+ * stop() — because that is the code production actually runs.
+ */
+describe("worker loop", () => {
+  const deferred = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => (resolve = r));
+    return { promise, resolve };
+  };
+  const within = <T>(promise: Promise<T>, ms: number) =>
+    Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`not done within ${ms} ms`)), ms),
+      ),
+    ]);
+
+  it("wakes on NOTIFY instead of waiting for the next poll", async () => {
+    const ran = deferred();
+    const ping = defineJob({ name: "ping", payload: z.object({}), run: async () => ran.resolve() });
+    // A one-minute poll: if the job runs in under two seconds, LISTEN woke the worker.
+    const w = new Worker({
+      db,
+      pool,
+      definitions: [ping],
+      mailer: new MemoryMailer(),
+      log,
+      pollIntervalMs: 60_000,
+    });
+    await w.start();
+    try {
+      await enqueue(db, "ping");
+      await within(ran.promise, 2_000);
+    } finally {
+      await w.stop();
+    }
+  });
+
+  it("never runs more jobs at once than its concurrency", async () => {
+    let running = 0;
+    let peak = 0;
+    let done = 0;
+    const all = deferred();
+    const slow = defineJob({
+      name: "slow",
+      payload: z.object({}),
+      run: async () => {
+        peak = Math.max(peak, ++running);
+        await new Promise((r) => setTimeout(r, 50));
+        running -= 1;
+        if (++done === 6) all.resolve();
+      },
+    });
+    for (let i = 0; i < 6; i++) await enqueue(db, "slow");
+    const w = new Worker({
+      db,
+      pool,
+      definitions: [slow],
+      mailer: new MemoryMailer(),
+      log,
+      concurrency: 2,
+    });
+    await w.start();
+    try {
+      await within(all.promise, 5_000);
+    } finally {
+      await w.stop();
+    }
+    expect(peak).toBe(2);
+  });
+
+  it("stop() hands unfinished jobs back to the queue, and a late finish can't overwrite that", async () => {
+    const started = deferred();
+    const release = deferred();
+    const stuck = defineJob({
+      name: "stuck",
+      payload: z.object({}),
+      run: async () => {
+        started.resolve();
+        await release.promise; // ignores the abort signal, like a badly-behaved handler
+      },
+    });
+    const id = await enqueue(db, "stuck");
+    const w = new Worker({ db, pool, definitions: [stuck], mailer: new MemoryMailer(), log });
+    await w.start();
+    await within(started.promise, 2_000);
+    await w.stop(100); // gives up waiting after 100 ms
+
+    const handedBack = await jobRow(id!);
+    expect(handedBack).toMatchObject({ status: "queued", lockedBy: null, attempts: 1 });
+    expect(handedBack.runAt.getTime()).toBeLessThanOrEqual(Date.now() + 1_000);
+
+    // The handler finally returns. It no longer holds the lease, so its
+    // "succeeded" must not clobber the row another worker may now own.
+    release.resolve();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(await jobRow(id!)).toMatchObject({ status: "queued" });
+  });
+
+  it("asks running jobs to stop via their AbortSignal", async () => {
+    const started = deferred();
+    let aborted = false;
+    const polite = defineJob({
+      name: "polite",
+      payload: z.object({}),
+      run: async (_payload, { signal }) => {
+        started.resolve();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => {
+            aborted = true;
+            resolve();
+          }),
+        );
+      },
+    });
+    await enqueue(db, "polite");
+    const w = new Worker({ db, pool, definitions: [polite], mailer: new MemoryMailer(), log });
+    await w.start();
+    await within(started.promise, 2_000);
+    const before = performance.now();
+    await w.stop();
+    expect(aborted).toBe(true);
+    expect(performance.now() - before).toBeLessThan(1_000); // didn't sit out the 25 s timeout
   });
 });
