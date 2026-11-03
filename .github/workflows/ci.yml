@@ -177,8 +177,11 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
+      # A pinned shellcheck, not whatever version the runner image ships: the
+      # runner's older one reported different rule codes than the version the
+      # scripts were checked with (Stage 14), and a linter must judge the same way everywhere.
       - name: Operations scripts pass shellcheck
-        run: shellcheck deploy/scripts/*.sh
+        run: docker run --rm -v "$PWD/deploy/scripts:/s" koalaman/shellcheck:v0.11.0 /s/backup.sh /s/deploy.sh /s/restore-drill.sh
 
       - name: Prometheus config is valid and alert rules pass their unit tests
         run: |
@@ -210,7 +213,12 @@ jobs:
 
       - name: Container logs
         if: failure()
-        run: IMAGE_TAG=next docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail 80
+        run: |
+          if [ -f deploy/.env ]; then
+            IMAGE_TAG=next docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail 80
+          else
+            echo "No stack was started: the failure happened before the deploy steps."
+          fi
 
   security:
     name: Dependency audit · Secret scan

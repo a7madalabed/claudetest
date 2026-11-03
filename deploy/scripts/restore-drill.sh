@@ -25,7 +25,7 @@ POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:18.6-alpine3.24}"
 API_IMAGE="${API_IMAGE:-${REGISTRY:-ghcr.io/a7madalabed}/ledgerly-api:${IMAGE_TAG:-latest}}"
 run="drill-$$"
 log() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
-# shellcheck disable=SC2329 # invoked by the trap below
+# shellcheck disable=SC2317,SC2329 # invoked by the trap below (older shellcheck: SC2317)
 cleanup() { docker rm -f "$run-db" "$run-api" >/dev/null 2>&1 || true; docker network rm "$run" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
