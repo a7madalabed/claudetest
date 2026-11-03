@@ -1,10 +1,9 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { z } from "zod";
+import { apiUrl } from "../api-url";
 import { ApiError } from "./errors";
-
-const API_URL = process.env.API_URL ?? "http://localhost:4000";
 
 /**
  * Calls the API from the Next.js SERVER (Server Components), forwarding the
@@ -12,8 +11,21 @@ const API_URL = process.env.API_URL ?? "http://localhost:4000";
  * A 401 means the session is gone: send them to sign in.
  */
 export async function serverApi<S extends z.ZodType>(path: string, schema: S): Promise<z.infer<S>> {
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: { cookie: (await cookies()).toString() },
+  const incoming = await headers();
+  const response = await fetch(`${apiUrl()}${path}`, {
+    headers: {
+      cookie: (await cookies()).toString(),
+      /*
+       * Pass on WHO is asking. Without it, every server-rendered page's API
+       * calls come from this server's own address, and all users share ONE
+       * rate-limit bucket: under real traffic everyone starts getting errors
+       * (found by a load test during a deploy, Stage 14). The header was set
+       * by our own proxy (Caddy), which discards any value a client sends.
+       */
+      ...(incoming.get("x-forwarded-for") && {
+        "x-forwarded-for": incoming.get("x-forwarded-for")!,
+      }),
+    },
     cache: "no-store",
     signal: AbortSignal.timeout(5_000),
   });

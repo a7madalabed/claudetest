@@ -15,6 +15,13 @@ import type { FastifyPluginAsync } from "fastify";
  *                     checked the DB, a database blip would restart every instance
  *                     at once — turning a small outage into a big one.
  */
+declare module "fastify" {
+  interface FastifyInstance {
+    /** Set on SIGTERM: readiness reports 503 so load balancers stop sending traffic. */
+    draining: boolean;
+  }
+}
+
 export const healthRoutes: FastifyPluginAsync<{ version: string }> = async (app, opts) => {
   app.get(
     "/health",
@@ -39,6 +46,10 @@ export const healthRoutes: FastifyPluginAsync<{ version: string }> = async (app,
       },
     },
     async (request, reply) => {
+      // Shutting down: alive (finishing in-flight requests) but not taking new ones.
+      if (app.draining) {
+        return reply.code(503).send({ status: "draining", checks: {} });
+      }
       const started = performance.now();
       try {
         await Promise.race([

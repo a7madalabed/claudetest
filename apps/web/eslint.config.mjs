@@ -4,7 +4,7 @@ import prettier from "eslint-config-prettier";
 
 // Next's recommended rules: React, hooks, accessibility (jsx-a11y) and Core Web Vitals.
 const config = [
-  { ignores: [".next/**", ".next-e2e/**", "next-env.d.ts", "coverage/**"] },
+  { ignores: [".next/**", "next-env.d.ts", "coverage/**"] },
   ...nextVitals,
   ...nextTs,
   {

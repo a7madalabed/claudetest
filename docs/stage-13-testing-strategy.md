@@ -323,7 +323,7 @@ Playwright ─► web (next start, :3100) ─/api─► API (node dist/server.js
 
 **Its own ports and database.** Port 3100/4100 and `ledgerly_e2e_test`, recreated from scratch every run. The suite can run while `pnpm dev` is up, and never touches your data. The reset script refuses any database that isn't local or whose name lacks `test`.
 
-**A separate web build.** This was the first surprise. Next.js resolves `rewrites()`, our `/api → API` proxy, at **build** time and writes the target into `.next/routes-manifest.json`. A normal build points at port 4000. So `scripts/build-web.ts` builds into `apps/web/.next-e2e` with `API_URL` pointing at port 4100, and your usual `.next` stays untouched.
+**A separate web build.** _(Stage 14 later removed the need for it by moving the proxy to request time; see [§3 there](./stage-14-deployment-and-operations.md#3-build-once-run-anywhere).)_ This was the first surprise. Next.js resolves `rewrites()`, our `/api → API` proxy, at **build** time and writes the target into `.next/routes-manifest.json`. A normal build points at port 4000. So `scripts/build-web.ts` builds into `apps/web/.next-e2e` with `API_URL` pointing at port 4100, and your usual `.next` stays untouched.
 
 The second surprise followed straight away. Server Components call the API **directly** (`lib/api/server.ts`) and read `API_URL` at **runtime**. The first test run showed "This page couldn't load" right after sign-up: the server-rendered dashboard was calling port 4000. **The same setting is read in two places, at two different times.** That's a classic deployment trap, and Stage 14 will meet it again with real hosting. The config now passes `API_URL` to both, and says why.
 

@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_API_URL, E2E_DIST_DIR, E2E_WEB_PORT, E2E_WEB_URL } from "./src/env.js";
+import { E2E_API_URL, E2E_WEB_PORT, E2E_WEB_URL } from "./src/env.js";
 
 const CI = Boolean(process.env.CI);
 
@@ -49,13 +49,16 @@ export default defineConfig({
       stdout: "pipe",
     },
     {
-      // The production web build made by `pnpm --filter @ledgerly/e2e build:web`.
-      command: `node node_modules/next/dist/bin/next start --port ${E2E_WEB_PORT}`,
+      /*
+       * The web app's standalone production server — the same artifact the
+       * container image runs. API_URL is plain runtime configuration: the
+       * build doesn't know or care where the API is (Stage 14).
+       */
+      command: "node .next/standalone/apps/web/server.js",
       cwd: "../apps/web",
       env: {
-        NEXT_DIST_DIR: E2E_DIST_DIR,
-        // Read at RUNTIME by Server Components that call the API directly (lib/api/server.ts);
-        // the /api rewrite read it at BUILD time. Both must point at the e2e API.
+        PORT: String(E2E_WEB_PORT),
+        HOSTNAME: "localhost",
         API_URL: E2E_API_URL,
         NEXT_TELEMETRY_DISABLED: "1",
       },

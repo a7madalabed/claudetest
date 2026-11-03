@@ -1,0 +1,160 @@
+# Ledgerly in production, on one server, with Docker Compose.
+#
+#   cp .env.example .env        # then fill in every value (see the comments there)
+#   docker compose up -d --wait # or: scripts/deploy.sh <image-tag>
+#
+# Only Caddy is reachable from outside (ports 80/443). Everything else talks on
+# a private network, and every application container is locked down: read-only
+# filesystem, no Linux capabilities, no privilege escalation, a non-root user.
+# The images are built ONCE in CI and are identical in every environment; all
+# differences live in .env.
+
+name: ledgerly
+
+# Settings shared by the three application containers.
+x-app: &app
+  restart: unless-stopped
+  read_only: true # the code can't be modified at runtime, even by an attacker
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  networks: [backend]
+  logging: &logging
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" } # logs can't fill the disk
+
+# Secrets and settings the API, worker and migrator need. The web server gets
+# none of them: least privilege — it only needs to know where the API is.
+x-api-env: &api-env
+  NODE_ENV: production
+  APP_VERSION: ${IMAGE_TAG:?set IMAGE_TAG (the image version to run)}
+  DATABASE_URL: postgres://ledgerly:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/ledgerly
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+  APP_URL: https://${SITE_ADDRESS:?set SITE_ADDRESS}
+  CORS_ORIGINS: https://${SITE_ADDRESS}
+  # Two proxies we control sit in front of the API: Caddy, then the web server.
+  TRUST_PROXY: "2"
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  API_DOCS: ${API_DOCS:-false}
+  # Only ever "false" for a load test against a staging copy.
+  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+
+services:
+  postgres:
+    image: postgres:18.6-alpine3.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ledgerly
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ledgerly
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/<major>/docker;
+      # mounting the parent makes future major upgrades (pg_upgrade) possible.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledgerly -d ledgerly"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    shm_size: 256mb
+    networks: [backend]
+    logging: *logging
+
+  # One-off: bring the schema up to date, then exit. The API and worker only
+  # start once it has SUCCEEDED; if it fails, the deploy stops right here.
+  migrate:
+    <<: *app
+    image: ${REGISTRY:-ghcr.io/a7madalabed}/ledgerly-api:${IMAGE_TAG}
+    command: ["node", "dist/migrate.js"]
+    restart: "no"
+    environment: *api-env
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *app
+    image: ${REGISTRY:-ghcr.io/a7madalabed}/ledgerly-api:${IMAGE_TAG}
+    environment:
+      <<: *api-env
+      # Answer "not ready" for 5 s before closing, so traffic moves away first.
+      SHUTDOWN_DRAIN_MS: "5000"
+      METRICS_PORT: "9464"
+    # Must exceed the drain + the time to finish in-flight requests.
+    stop_grace_period: 30s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    <<: *app
+    image: ${REGISTRY:-ghcr.io/a7madalabed}/ledgerly-api:${IMAGE_TAG}
+    command: ["node", "dist/worker.js"]
+    environment:
+      <<: *api-env
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      METRICS_PORT: "9464"
+    # Graceful stop hands unfinished jobs back to the queue (Stage 10); give it time.
+    stop_grace_period: 30s
+    # The image's HTTP health check is for the API; the worker serves only metrics.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:9464/metrics').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    <<: *app
+    image: ${REGISTRY:-ghcr.io/a7madalabed}/ledgerly-web:${IMAGE_TAG}
+    environment:
+      APP_VERSION: ${IMAGE_TAG}
+      API_URL: http://api:4000 # runtime configuration — not baked into the image
+    # Next.js writes its cache (e.g. optimised images) here; everything else is read-only.
+    tmpfs: [/tmp, "/app/apps/web/.next/cache:uid=1000,gid=1000"]
+    depends_on:
+      api: { condition: service_healthy }
+
+  # The only public entry point: HTTPS (certificates obtained and renewed
+  # automatically), compression, and security headers, in front of the web app.
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificates: losing this means re-issuing them
+      - caddy_config:/config
+    depends_on:
+      web: { condition: service_healthy }
+    networks: [backend]
+    logging: *logging
+
+  # Metrics and alerting. Off unless you ask: docker compose --profile monitoring up -d
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    # Not published: reach it through an SSH tunnel (see docs/runbook.md).
+    networks: [backend]
+    logging: *logging
+
+networks:
+  backend: {}
+
+volumes:
+  pgdata: {}
+  caddy_data: {}
+  caddy_config: {}
+  prometheus_data: {}

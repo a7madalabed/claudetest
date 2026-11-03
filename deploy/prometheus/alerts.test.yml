@@ -1,0 +1,168 @@
+# Unit tests for alerts.yml. Each test invents time series ("input_series",
+# one value per interval) and states which alerts must be firing at a given
+# moment. Run (see docs/runbook.md):
+#   docker run --rm -v "$PWD/deploy/prometheus:/p" --entrypoint promtool \
+#     prom/prometheus:v3.15.1 test rules /p/alerts.test.yml
+
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  # ── An instance stops answering ────────────────────────────────────────────
+  - interval: 15s
+    input_series:
+      - series: 'up{job="api", instance="api-1:9464"}'
+        values: "1 1 1 0x8" # up for 45 s, then down for 2 minutes
+    alert_rule_test:
+      - eval_time: 1m # down for 15 s: not yet ("for: 1m" avoids paging on a blip)
+        alertname: LedgerlyApiDown
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: LedgerlyApiDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: api, instance: "api-1:9464" }
+            exp_annotations:
+              summary: "API instance api-1:9464 is not answering"
+              description: "Prometheus could not scrape it for over a minute."
+              runbook_url: "docs/runbook.md#api-down"
+
+  # ── The worker's container is gone: its series disappears (staleness marker) ─
+  - interval: 15s
+    input_series:
+      - series: 'up{job="worker", instance="172.18.0.4:9464"}'
+        values: "1 1 1 stale"
+      - series: 'up{job="api", instance="172.18.0.5:9464"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 1m # gone for 15 s: pending, not firing
+        alertname: LedgerlyWorkerDown
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: LedgerlyWorkerDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: worker }
+            exp_annotations:
+              summary: "The background worker is not running"
+              description: "Imports, emails, budget alerts and recurring transactions have stopped."
+              runbook_url: "docs/runbook.md#worker-down"
+      - eval_time: 3m
+        alertname: LedgerlyApiDown
+        exp_alerts: [] # the API is fine
+
+  # ── 5% of requests fail → page; 1% → don't ─────────────────────────────────
+  - interval: 1m
+    input_series:
+      # Counters: per minute, 100 requests, 5 of them 500s.
+      - series: 'ledgerly_http_request_duration_seconds_count{job="api", route="/v1/me", method="GET", status_code="200"}'
+        values: "0+95x20"
+      - series: 'ledgerly_http_request_duration_seconds_count{job="api", route="/v1/me", method="GET", status_code="500"}'
+        values: "0+5x20"
+    alert_rule_test:
+      - eval_time: 4m # rate window filling, condition not yet held for 5 minutes
+        alertname: LedgerlyHighErrorRate
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: LedgerlyHighErrorRate
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "5% of API requests are failing"
+              description: "More than 2% of requests answered 5xx for 5 minutes."
+              runbook_url: "docs/runbook.md#high-error-rate"
+
+  - interval: 1m
+    input_series:
+      - series: 'ledgerly_http_request_duration_seconds_count{job="api", route="/v1/me", method="GET", status_code="200"}'
+        values: "0+99x20"
+      - series: 'ledgerly_http_request_duration_seconds_count{job="api", route="/v1/me", method="GET", status_code="500"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 15m # 1% is under the 2% threshold
+        alertname: LedgerlyHighErrorRate
+        exp_alerts: []
+
+  # ── Latency: hour-long SSE streams must NOT trigger the slow-requests alert ─
+  # (Buckets mirror the real histogram's top end: 1 s, 10 s, +Inf. Without a
+  # finite bucket above the threshold, histogram_quantile can never report more
+  # than 1 s, and this test would pass whatever the rule said.)
+  - interval: 1m
+    input_series:
+      # Normal requests: all of them under 100 ms.
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="0.1"}'
+        values: "0+100x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="1"}'
+        values: "0+100x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="10"}'
+        values: "0+100x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="+Inf"}'
+        values: "0+100x20"
+      # Live-update streams: every one "takes" longer than 10 s (they stay open).
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/events", le="0.1"}'
+        values: "0x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/events", le="1"}'
+        values: "0x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/events", le="10"}'
+        values: "0x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/events", le="+Inf"}'
+        values: "0+500x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LedgerlySlowRequests
+        exp_alerts: [] # would fire if /v1/events were counted
+
+  # …but genuinely slow requests do: here 90% take between 1 and 10 seconds.
+  - interval: 1m
+    input_series:
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="0.1"}'
+        values: "0+10x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="1"}'
+        values: "0+10x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="10"}'
+        values: "0+100x20"
+      - series: 'ledgerly_http_request_duration_seconds_bucket{job="api", route="/v1/me", le="+Inf"}'
+        values: "0+100x20"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LedgerlySlowRequests
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "API p95 latency is 9.5s"
+              description: "95% of requests should finish within 1 s; for 10 minutes they haven't."
+              runbook_url: "docs/runbook.md#slow-requests"
+
+  # ── The job queue falls behind ─────────────────────────────────────────────
+  - interval: 1m
+    input_series:
+      # The oldest due job: waiting longer and longer (nothing is being worked off).
+      - series: 'ledgerly_jobs_oldest_ready_age_seconds{job="worker", instance="worker-1:9464"}'
+        values: "0+60x30"
+    alert_rule_test:
+      - eval_time: 10m # 600 s old, but only above 300 s for 4 minutes so far
+        alertname: LedgerlyJobBacklog
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: LedgerlyJobBacklog
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "Background jobs are 20m 0s behind"
+              description: "Work is arriving faster than the worker finishes it, or the worker is stuck."
+              runbook_url: "docs/runbook.md#job-backlog"
+
+  # ── A job used up its retries ──────────────────────────────────────────────
+  - interval: 1m
+    input_series:
+      - series: 'ledgerly_jobs_total{job="worker", job_name="import.process", outcome="failed"}'
+        values: "0 0 0 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: LedgerlyJobsFailing
+        exp_alerts:
+          - exp_labels: { severity: warning, job_name: import.process }
+            exp_annotations:
+              summary: "import.process jobs failed permanently in the last 30 minutes"
+              description: "They used up their retries; their work did not happen. Look at last_error in the jobs table."
+              runbook_url: "docs/runbook.md#jobs-failing"

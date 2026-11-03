@@ -1,0 +1,23 @@
+# Prometheus: scrapes every process's /metrics every 15 s and evaluates the
+# alert rules in alerts.yml against what it collected.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  # DNS discovery instead of a fixed address: Docker's DNS returns EVERY
+  # container of a service, so `docker compose up --scale api=3` is scraped
+  # as three targets automatically.
+  - job_name: api
+    dns_sd_configs:
+      - names: [api]
+        type: A
+        port: 9464
+  - job_name: worker
+    dns_sd_configs:
+      - names: [worker]
+        type: A
+        port: 9464

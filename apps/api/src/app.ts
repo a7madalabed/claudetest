@@ -5,6 +5,7 @@ import sensible from "@fastify/sensible";
 import type { Database } from "@ledgerly/db";
 import Fastify, { type FastifyInstance } from "fastify";
 import type pg from "pg";
+import type { Registry } from "prom-client";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -32,12 +33,14 @@ import { authPlugin } from "./plugins/auth.js";
 import { csrfPlugin } from "./plugins/csrf.js";
 import { databasePlugin } from "./plugins/database.js";
 import { errorHandlerPlugin } from "./plugins/error-handler.js";
+import { metricsPlugin } from "./plugins/metrics.js";
 import { openApiPlugin } from "./plugins/openapi.js";
 import { responseCachePlugin } from "./plugins/response-cache.js";
 import { realtimePlugin } from "./realtime/events.plugin.js";
 import { healthRoutes } from "./routes/health.js";
 
-const VERSION = process.env.npm_package_version ?? "0.1.0";
+/** Request IDs we accept from upstream (e.g. a proxy's UUID); anything else is replaced. */
+const VALID_REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
 
 /** Everything the app needs from the outside world, passed in rather than created inside. */
 export interface AppDependencies {
@@ -46,6 +49,8 @@ export interface AppDependencies {
   closeDb?: () => Promise<void>;
   /** The raw pool, for the realtime LISTEN connection. Without it, /v1/events is off. */
   pool?: pg.Pool;
+  /** Where to record Prometheus metrics. Without it, nothing is measured. */
+  metrics?: Registry;
 }
 
 /**
@@ -66,10 +71,23 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
       }),
       // Never write secrets to logs.
       redact: ["req.headers.authorization", "req.headers.cookie"],
+      // On every line: which service, which build. "Did the errors start with
+      // the new release?" becomes a filter, not an investigation.
+      base: { service: "api", version: env.APP_VERSION },
     },
-    // Every request gets an ID so all log lines for one request can be correlated.
-    genReqId: () => crypto.randomUUID(),
-    requestIdHeader: "x-request-id",
+    /*
+     * Every request gets an ID so all log lines for one request can be correlated.
+     * An upstream proxy may pass its own (X-Request-Id) to correlate across hops,
+     * but only if it LOOKS like an ID: otherwise any client could write
+     * arbitrary text into our logs.
+     */
+    requestIdHeader: false,
+    genReqId: (request) => {
+      const incoming = request.headers["x-request-id"];
+      return typeof incoming === "string" && VALID_REQUEST_ID.test(incoming)
+        ? incoming
+        : crypto.randomUUID();
+    },
     // A JSON API never needs megabytes of input. A small limit blunts abuse.
     bodyLimit: 100 * 1024,
     // Behind a load balancer, the client's real IP arrives in X-Forwarded-For.
@@ -86,11 +104,16 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  // Echo the request ID back so a user's bug report can be matched to our logs.
   app.addHook("onRequest", async (request, reply) => {
+    // Echo the request ID back so a user's bug report can be matched to our logs.
     reply.header("x-request-id", request.id);
+    // CONNECTION DRAINING (Stage 14): while shutting down, ask every client to
+    // close its kept-alive connection after this response. It reconnects, and
+    // lands on an instance that isn't going away.
+    if (app.draining) reply.header("connection", "close");
   });
 
+  if (deps.metrics) await app.register(metricsPlugin, { registry: deps.metrics, pool: deps.pool });
   await app.register(errorHandlerPlugin);
   // Security headers. The API serves JSON, so the strictest CSP applies everywhere
   // except the interactive docs page, which needs to run its own scripts.
@@ -133,10 +156,16 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
     idleDays: env.SESSION_IDLE_DAYS,
   });
   if (env.API_DOCS) {
-    await app.register(openApiPlugin, { version: VERSION, cookieName: app.sessionCookieName });
+    await app.register(openApiPlugin, {
+      version: env.APP_VERSION,
+      cookieName: app.sessionCookieName,
+    });
   }
 
-  await app.register(healthRoutes, { version: VERSION });
+  // On the ROOT instance, so server.ts (which only holds the root) can flip it
+  // and the encapsulated health routes see the change.
+  app.decorate("draining", false);
+  await app.register(healthRoutes, { version: env.APP_VERSION });
 
   // Live updates over Server-Sent Events (needs a raw pool for LISTEN).
   if (deps.pool) {

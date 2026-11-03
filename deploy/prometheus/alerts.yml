@@ -1,0 +1,102 @@
+# Alert rules. Each one answers: "is a USER affected, or about to be?" —
+# alerts that fire for things nobody needs to act on teach people to ignore alerts.
+#
+#   severity: critical → wake someone up (users are affected now)
+#   severity: warning  → look at it during working hours (heading for trouble)
+#
+# Every alert links to its section of docs/runbook.md: what it means, what to check.
+# The rules have unit tests: alerts.test.yml (run with promtool, see the runbook).
+
+groups:
+  - name: ledgerly-availability
+    rules:
+      # `up == 0` alone is NOT enough. Targets come from Docker's DNS, and a
+      # stopped container leaves DNS: its series VANISHES instead of reading 0,
+      # and `up == 0` has nothing to match. (Found by stopping the worker in the
+      # live stack, Stage 14.) absent() covers "no instance at all".
+      - alert: LedgerlyApiDown
+        expr: up{job="api"} == 0 or absent(up{job="api"})
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "API instance {{ $labels.instance }} is not answering"
+          description: "Prometheus could not scrape it for over a minute."
+          runbook_url: "docs/runbook.md#api-down"
+
+      - alert: LedgerlyWorkerDown
+        expr: up{job="worker"} == 0 or absent(up{job="worker"})
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "The background worker is not running"
+          description: "Imports, emails, budget alerts and recurring transactions have stopped."
+          runbook_url: "docs/runbook.md#worker-down"
+
+      # 5xx answers as a share of all requests. A ratio, not a count, so it means
+      # the same at 3 requests a minute and at 3,000.
+      - alert: LedgerlyHighErrorRate
+        expr: |
+          sum(rate(ledgerly_http_request_duration_seconds_count{job="api",status_code=~"5.."}[5m]))
+            /
+          sum(rate(ledgerly_http_request_duration_seconds_count{job="api"}[5m]))
+            > 0.02
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of API requests are failing"
+          description: "More than 2% of requests answered 5xx for 5 minutes."
+          runbook_url: "docs/runbook.md#high-error-rate"
+
+  - name: ledgerly-performance
+    rules:
+      # p95 across all routes EXCEPT the live-updates stream: an SSE "request"
+      # stays open for hours and would make every percentile meaningless.
+      - alert: LedgerlySlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(ledgerly_http_request_duration_seconds_bucket{job="api",route!="/v1/events"}[5m]))
+          ) > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "API p95 latency is {{ $value | humanizeDuration }}"
+          description: "95% of requests should finish within 1 s; for 10 minutes they haven't."
+          runbook_url: "docs/runbook.md#slow-requests"
+
+      - alert: LedgerlyDatabasePoolExhausted
+        expr: max by (instance) (ledgerly_db_pool_waiting{job="api"}) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Requests are queueing for database connections on {{ $labels.instance }}"
+          description: "Queries are too slow or the pool is too small (Stage 12, pool sizing)."
+          runbook_url: "docs/runbook.md#database-pool-exhausted"
+
+      - alert: LedgerlyEventLoopBlocked
+        expr: max by (instance, job) (ledgerly_nodejs_eventloop_lag_p99_seconds) > 0.2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.job }} event loop lag p99 is {{ $value | humanizeDuration }}"
+          description: "Something is hogging the CPU; every request on that process waits behind it."
+          runbook_url: "docs/runbook.md#event-loop-blocked"
+
+  - name: ledgerly-jobs
+    rules:
+      # The best single health signal for a queue: how long has the oldest due job waited?
+      - alert: LedgerlyJobBacklog
+        expr: max(ledgerly_jobs_oldest_ready_age_seconds{job="worker"}) > 300
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Background jobs are {{ $value | humanizeDuration }} behind"
+          description: "Work is arriving faster than the worker finishes it, or the worker is stuck."
+          runbook_url: "docs/runbook.md#job-backlog"
+
+      - alert: LedgerlyJobsFailing
+        expr: sum by (job_name) (increase(ledgerly_jobs_total{job="worker",outcome="failed"}[30m])) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.job_name }} jobs failed permanently in the last 30 minutes"
+          description: "They used up their retries; their work did not happen. Look at last_error in the jobs table."
+          runbook_url: "docs/runbook.md#jobs-failing"

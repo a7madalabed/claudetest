@@ -1,18 +1,32 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { apiUrl } from "./lib/api-url";
 import { SESSION_COOKIE_NAMES } from "./lib/session-cookie";
 
 /**
- * Next.js Proxy (formerly "middleware") runs before every matched request.
+ * Next.js Proxy (formerly "middleware") runs before every matched request, on
+ * the Node.js runtime, at REQUEST time. It does two jobs:
  *
- * It performs an OPTIMISTIC check only: "is there a session cookie at all?".
- * That's enough to redirect signed-out visitors to /login without rendering a
- * protected page first. It is NOT security: a forged or expired cookie passes
- * this check, and is then rejected by the API — the real gatekeeper — when the
- * page asks for data. (The Next.js docs recommend exactly this split.)
+ * 1. THE /api PROXY. The browser talks to the API through the web app's own
+ *    origin:  https://app.example.com/api/v1/me  →  http://api:4000/v1/me
+ *    Same origin means first-party cookies (server components can read the
+ *    session), no CORS preflights, and the API's address stays private.
+ *    This used to be a `rewrites()` entry in next.config.ts — but Next resolves
+ *    those at BUILD time, so every environment needed its own build. Here the
+ *    target is read per request, so one image runs everywhere (Stage 14).
+ *
+ * 2. AN OPTIMISTIC SIGN-IN CHECK: "is there a session cookie at all?" — enough
+ *    to send signed-out visitors to /login without rendering a protected page.
+ *    It is NOT security: a forged or expired cookie passes, and is then rejected
+ *    by the API, the real gatekeeper (the pattern the Next.js docs recommend).
  */
 export function proxy(request: NextRequest) {
-  const hasSession = SESSION_COOKIE_NAMES.some((name) => request.cookies.has(name));
   const { pathname, search } = request.nextUrl;
+
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.rewrite(new URL(`${pathname.slice("/api".length)}${search}`, apiUrl()));
+  }
+
+  const hasSession = SESSION_COOKIE_NAMES.some((name) => request.cookies.has(name));
 
   if (pathname.startsWith("/app") && !hasSession) {
     const login = new URL("/login", request.url);
@@ -28,5 +42,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/login", "/signup"],
+  matcher: ["/api/:path*", "/app/:path*", "/login", "/signup"],
 };

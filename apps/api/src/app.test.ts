@@ -73,6 +73,38 @@ describe("platform", () => {
   });
 });
 
+describe("operations", () => {
+  const ctx = useTestApp();
+
+  it("while draining, readiness says 503 but liveness stays 200", async () => {
+    ctx.app.draining = true;
+    try {
+      const ready = await ctx.app.inject({ method: "GET", url: "/health/ready" });
+      expect(ready.statusCode).toBe(503);
+      expect(ready.json()).toMatchObject({ status: "draining" });
+      expect((await ctx.app.inject({ method: "GET", url: "/health" })).statusCode).toBe(200);
+    } finally {
+      ctx.app.draining = false;
+    }
+  });
+
+  it("keeps a well-formed upstream request id, and replaces anything else", async () => {
+    const send = (id: string) =>
+      ctx.app.inject({ method: "GET", url: "/health", headers: { "x-request-id": id } });
+    const upstream = "4f0e9d8c-5b1a-4c2e-9f7d-0a1b2c3d4e5f";
+    expect((await send(upstream)).headers["x-request-id"]).toBe(upstream);
+
+    const forged = (await send("evil\nFAKE LOG LINE level=error")).headers["x-request-id"];
+    expect(forged).not.toContain("FAKE");
+    expect(forged).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("reports which build is running", async () => {
+    const health = (await ctx.app.inject({ method: "GET", url: "/health" })).json();
+    expect(health.version).toBe("dev"); // APP_VERSION, baked into the image at build time
+  });
+});
+
 describe("readiness when the database is down", () => {
   it("returns 503 but liveness stays 200", async () => {
     const unreachable = "postgres://ledgerly:ledgerly@127.0.0.1:1/nowhere";

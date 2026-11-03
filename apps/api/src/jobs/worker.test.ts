@@ -165,6 +165,32 @@ describe("job queue", () => {
     expect(await db.select().from(jobs)).toHaveLength(1);
   });
 
+  it("reports every attempt's outcome and duration (for metrics)", async () => {
+    const seen: Array<[string, string, number]> = [];
+    const ok = defineJob({ name: "ok", payload: z.object({}), run: async () => {} });
+    const bad = defineJob({
+      name: "bad",
+      payload: z.object({}),
+      run: async () => {
+        throw new PermanentJobError("nope");
+      },
+    });
+    await enqueue(db, "ok");
+    await enqueue(db, "bad");
+    await new Worker({
+      db,
+      definitions: [ok, bad],
+      mailer: new MemoryMailer(),
+      log,
+      onJobFinished: (job, outcome, seconds) => seen.push([job, outcome, seconds]),
+    }).drain();
+    expect(seen.map(([job, outcome]) => `${job}:${outcome}`).sort()).toEqual([
+      "bad:failed",
+      "ok:succeeded",
+    ]);
+    expect(seen.every(([, , seconds]) => seconds >= 0 && seconds < 5)).toBe(true);
+  });
+
   it("backs off exponentially, with jitter, up to an hour", () => {
     const mid = () => 0.5; // jitter factor 1.0
     expect([1, 2, 3, 4].map((n) => backoffMs(n, mid))).toEqual([10_000, 20_000, 40_000, 80_000]);

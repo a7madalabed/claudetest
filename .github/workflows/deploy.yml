@@ -1,0 +1,132 @@
+# Continuous Deployment: every commit on main that passes CI goes to production.
+#
+# OFF until you opt in. Nothing here runs (no images are published, no server is
+# contacted) unless the repository variable DEPLOY_ENABLED is "true". To set it
+# up, follow docs/runbook.md#setting-up-a-server; it needs:
+#   variables  DEPLOY_ENABLED=true, SITE_ADDRESS=ledgerly.example.com
+#   secrets    DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS
+#   an environment called "production" (Settings → Environments), where you can
+#   require a manual approval before each deploy.
+name: Deploy
+
+on:
+  # After CI finishes on main. (The job below checks that it SUCCEEDED.)
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # By hand: redeploy, or roll back by deploying an older commit.
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to deploy (default: the latest on main). Its images must exist."
+        required: false
+
+# One deploy at a time, and never cancel one halfway through.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: Publish images
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write # push to GitHub Container Registry
+      id-token: write # sign build provenance
+      attestations: write
+    outputs:
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - id: version
+        name: Which commit
+        # Through env, never ${{ }} inside the script: text typed into the
+        # "Run workflow" form must not become shell code ("script injection").
+        env:
+          REQUESTED: ${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          if [[ ! "$REQUESTED" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "::error::Not a commit SHA: $REQUESTED"
+            exit 1
+          fi
+          echo "sha=$REQUESTED" >> "$GITHUB_OUTPUT"
+          # Registry paths must be lowercase.
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.version.outputs.sha }}
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # The image tag IS the commit: what runs in production is always traceable
+      # to exact source. `provenance` and `sbom` attach a signed record of how it
+      # was built and a list of everything inside it (supply-chain security).
+      - name: API image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          build-args: APP_VERSION=${{ steps.version.outputs.sha }}
+          tags: ${{ steps.version.outputs.registry }}/ledgerly-api:${{ steps.version.outputs.sha }}
+          push: true
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=api
+      - name: Web image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          build-args: APP_VERSION=${{ steps.version.outputs.sha }}
+          tags: ${{ steps.version.outputs.registry }}/ledgerly-web:${{ steps.version.outputs.sha }}
+          push: true
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=web
+
+  deploy:
+    name: Deploy to production
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Environment protection rules (required reviewers, wait timers) apply here.
+    environment:
+      name: production
+      url: https://${{ vars.SITE_ADDRESS }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.images.outputs.sha }}
+      - name: SSH access to the server
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          # Pinned host key: refuse to talk to anything pretending to be our server.
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Ship the deploy files (never .env — it lives only on the server)
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+        run: |
+          rsync -az --delete --exclude .env --exclude backups --exclude .deploy-history \
+            deploy/ "$TARGET:ledgerly/deploy/"
+      - name: Roll out (rolls back by itself if the new version is unhealthy)
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          SHA: ${{ needs.images.outputs.sha }} # validated hex above
+        run: |
+          # shellcheck disable=SC2029 # expanding here is intended: $SHA is validated hex
+          ssh "$TARGET" "ledgerly/deploy/scripts/deploy.sh $SHA"

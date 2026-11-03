@@ -63,6 +63,16 @@ const EnvSchema = z
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(4),
     /** Serve /docs and /openapi.json. */
     API_DOCS: booleanString.default(true),
+    /** Which BUILD is running (the git commit). Baked into the image; in every log line and /health. */
+    APP_VERSION: z.string().min(1).max(100).default("dev"),
+    /**
+     * On SIGTERM, report "not ready" for this long BEFORE closing (Stage 14), so
+     * load balancers stop sending new requests first. 0 locally; a few seconds
+     * behind a load balancer (longer than its health-check interval).
+     */
+    SHUTDOWN_DRAIN_MS: z.coerce.number().int().min(0).max(60_000).default(0),
+    /** Port for Prometheus metrics (/metrics), kept off the public port. 0 disables it. */
+    METRICS_PORT: z.coerce.number().int().min(0).max(65_535).default(0),
     CORS_ORIGINS: z
       .string()
       .default("http://localhost:3000")

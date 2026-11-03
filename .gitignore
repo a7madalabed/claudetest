@@ -4,7 +4,6 @@ node_modules/
 # Build output
 dist/
 .next/
-.next-e2e/
 out/
 *.tsbuildinfo
 next-env.d.ts
@@ -25,3 +24,9 @@ coverage/
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
+
+# Deploy history on a server (deploy/scripts/deploy.sh)
+deploy/.deploy-history
+
+# Database backups made on a server (deploy/scripts/backup.sh)
+deploy/backups/

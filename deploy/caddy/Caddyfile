@@ -1,0 +1,40 @@
+# Caddy: the public front door. With a real domain as SITE_ADDRESS it obtains
+# and renews a Let's Encrypt certificate by itself; with "localhost" it uses a
+# locally-trusted internal certificate (for trying the stack on your machine).
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		# Browsers must only ever use HTTPS for this site, for a year.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Don't advertise what we run.
+		-Server
+	}
+
+	# Everything goes to the web app; it proxies /api/* to the API privately.
+	# Caddy sets X-Forwarded-For to the real client address and IGNORES any
+	# X-Forwarded-For a client sends, so it can't be forged.
+	reverse_proxy {
+		# Find every web container through Docker's DNS, re-checked each second:
+		# during a deploy there are briefly two (scripts/deploy.sh).
+		dynamic a web 3000 {
+			refresh 1s
+		}
+		# A container that is shutting down refuses new connections; a refused
+		# connection is always retried on another container, for up to 5 s.
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		transport http {
+			# A fresh connection per request (sub-millisecond on a local network).
+			# With keep-alive, a busy proxy keeps reusing its connections to the
+			# OLD container and it can never finish shutting down — measured: a
+			# 30 s hang and stale responses during a deploy (Stage 14).
+			keepalive off
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

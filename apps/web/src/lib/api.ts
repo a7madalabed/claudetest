@@ -1,7 +1,6 @@
 import "server-only";
 import { HealthResponseSchema, type HealthResponse } from "@ledgerly/shared";
-
-const API_URL = process.env.API_URL ?? "http://localhost:4000";
+import { apiUrl } from "./api-url";
 
 export type ApiHealth = { ok: true; data: HealthResponse } | { ok: false; error: string };
 
@@ -17,7 +16,7 @@ export type ApiHealth = { ok: true; data: HealthResponse } | { ok: false; error:
  */
 export async function getApiHealth(): Promise<ApiHealth> {
   try {
-    const response = await fetch(`${API_URL}/health`, {
+    const response = await fetch(`${apiUrl()}/health`, {
       cache: "no-store",
       signal: AbortSignal.timeout(3_000),
     });
@@ -28,6 +27,6 @@ export async function getApiHealth(): Promise<ApiHealth> {
 
     return { ok: true, data: parsed.data };
   } catch {
-    return { ok: false, error: "Can't reach the API — is it running on " + API_URL + "?" };
+    return { ok: false, error: `Can't reach the API — is it running on ${apiUrl()}?` };
   }
 }

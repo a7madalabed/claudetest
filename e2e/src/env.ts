@@ -12,6 +12,3 @@ export const E2E_WEB_URL = `http://localhost:${E2E_WEB_PORT}`;
 
 export const E2E_DATABASE_URL =
   process.env.E2E_DATABASE_URL ?? "postgres://ledgerly:ledgerly@localhost:5432/ledgerly_e2e_test";
-
-/** The web build for this suite lives apart from the normal one (see scripts/build-web.ts). */
-export const E2E_DIST_DIR = ".next-e2e";

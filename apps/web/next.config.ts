@@ -1,26 +1,24 @@
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
-
-const API_URL = process.env.API_URL ?? "http://localhost:4000";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // The end-to-end suite builds into its own folder (e2e/scripts/build-web.ts).
-  distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  /*
+   * A self-contained server for production (Stage 14): `next build` traces which
+   * files the server actually needs and copies them, with a minimal node_modules,
+   * into .next/standalone. The container image ships only that, not the whole
+   * monorepo. The trace root is the repo root, because workspace packages
+   * (@ledgerly/shared) live outside apps/web.
+   */
+  output: "standalone",
+  outputFileTracingRoot: fileURLToPath(new URL("../../", import.meta.url)),
   // Don't advertise which framework we run (a tiny bit less info for attackers).
   poweredByHeader: false,
   // Dev-only badge: bottom-left keeps it clear of sheet/dialog action buttons.
   devIndicators: { position: "bottom-left" },
-  /**
-   * The browser talks to the API through the web app's own origin:
-   *   http://localhost:3000/api/v1/me  →  http://localhost:4000/v1/me
-   *
-   * Same origin means: first-party cookies (the session cookie belongs to the web
-   * app's domain, so server components can read it), no CORS preflight requests,
-   * and the API's address is an implementation detail the browser never sees.
-   */
-  async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_URL}/:path*` }];
-  },
+  // NOTE: no `rewrites()` for /api any more. Next resolves those at BUILD time,
+  // which tied each build to one environment; the proxy now lives in src/proxy.ts
+  // and reads API_URL per request.
 };
 
 export default nextConfig;

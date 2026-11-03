@@ -24,7 +24,11 @@ export interface WorkerOptions {
   log: Logger;
   concurrency?: number;
   pollIntervalMs?: number;
+  /** Called after every attempt (metrics, Stage 14). */
+  onJobFinished?: (job: string, outcome: JobOutcome, seconds: number) => void;
 }
+
+export type JobOutcome = "succeeded" | "retry" | "failed";
 
 const DEFAULT_LEASE_SECONDS = 60;
 const DEFAULT_MAX_ATTEMPTS = 5;
@@ -196,7 +200,14 @@ export class Worker {
 
   // ─── Running one job ───────────────────────────────────────────────────────
 
-  private async execute(job: Job, signal: AbortSignal): Promise<"succeeded" | "retry" | "failed"> {
+  private async execute(job: Job, signal: AbortSignal): Promise<JobOutcome> {
+    const started = performance.now();
+    const outcome = await this.attempt(job, signal);
+    this.options.onJobFinished?.(job.name, outcome, (performance.now() - started) / 1000);
+    return outcome;
+  }
+
+  private async attempt(job: Job, signal: AbortSignal): Promise<JobOutcome> {
     const log = this.log.child({ jobId: job.id, job: job.name, attempt: job.attempts });
     const definition = this.definitions.get(job.name);
     const maxAttempts = job.maxAttempts ?? definition?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;

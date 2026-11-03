@@ -1,0 +1,30 @@
+# What `docker build` may NOT see. Smaller context = faster builds, and secrets
+# can never end up in an image layer by accident.
+
+# Secrets and local config — never in an image
+**/.env
+**/.env.*
+!**/.env.example
+
+# Installed and built output: the image builds its own, for its own platform
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+**/coverage
+
+# Test and tooling output
+e2e/playwright-report
+e2e/test-results
+tools/perf/results
+
+# Version control and editors
+.git
+.github
+.vscode
+.idea
+**/.DS_Store
+
+# Documentation isn't needed to build or run the app
+docs

@@ -9,6 +9,7 @@ import {
 } from "@ledgerly/db";
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from "fastify";
 import { pino } from "pino";
+import type { Registry } from "prom-client";
 import { afterAll, beforeAll, beforeEach } from "vitest";
 import { buildApp } from "../app.js";
 import { loadEnv } from "../config/env.js";
@@ -56,7 +57,7 @@ let currentTokens: Record<string, string> = {};
 
 export function useTestApp(
   envOverrides: Record<string, string> = {},
-  { realtime = false }: { realtime?: boolean } = {},
+  { realtime = false, metrics }: { realtime?: boolean; metrics?: Registry } = {},
 ) {
   const database = createDb({ connectionString: API_TEST_DATABASE_URL, maxConnections: 6 });
   const ctx = {
@@ -72,6 +73,7 @@ export function useTestApp(
       db: database.db,
       closeDb: database.close,
       ...(realtime && { pool: database.pool }),
+      ...(metrics && { metrics }),
     });
     if (realtime) ctx.baseUrl = await ctx.app.listen({ host: "127.0.0.1", port: 0 });
   });

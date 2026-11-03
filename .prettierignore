@@ -1,7 +1,6 @@
 pnpm-lock.yaml
 dist
 .next
-.next-e2e
 playwright-report
 test-results
 .turbo

@@ -16,6 +16,9 @@ concurrency:
 permissions:
   contents: read
 
+# Action versions are whole major versions (v7…), upgraded deliberately: each
+# major is a potential breaking change (Stage 14 moved them all to Node 24).
+
 jobs:
   check:
     name: Format · Lint · Typecheck · Test · Build
@@ -25,7 +28,7 @@ jobs:
     # A real PostgreSQL for integration tests, started fresh for every run.
     services:
       postgres:
-        image: postgres:18-alpine
+        image: postgres:18.6-alpine3.24
         env:
           POSTGRES_USER: ledgerly
           POSTGRES_PASSWORD: ledgerly
@@ -45,12 +48,12 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Reads the pnpm version from the "packageManager" field in package.json.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -85,7 +88,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18-alpine
+        image: postgres:18.6-alpine3.24
         env:
           POSTGRES_USER: ledgerly
           POSTGRES_PASSWORD: ledgerly
@@ -102,9 +105,9 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -113,7 +116,7 @@ jobs:
       # The browser binary is ~150 MB: cache it, keyed by the exact Playwright version.
       - name: Cache Playwright's browser
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -124,33 +127,105 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @ledgerly/e2e exec playwright install-deps chromium
 
-      # Builds the API and an e2e build of the web app, starts API + worker + web
-      # on a fresh database, and runs every journey (CI=true: 2 retries, traces).
+      # Builds the API and web app, starts API + worker + web (configured at
+      # runtime) on a fresh database, and runs every journey (CI=true: 2 retries, traces).
       - run: pnpm e2e
 
       # On failure, keep the HTML report: screenshots, and a step-by-step trace
       # of every retried test (open with `npx playwright show-trace`).
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
           path: e2e/playwright-report/
           retention-days: 14
 
+  # The production artifacts and operations, exercised for real on every change:
+  # build the container images, deploy them with the real deploy script (first
+  # deploy, then a rolling update), back up, and prove the backup restores.
+  containers:
+    name: Images · Deploy · Backup drill · Alerts
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Built here, never pushed from CI: the deploy workflow publishes images.
+      REGISTRY: ci.local
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+
+      # Layers are cached between runs (GitHub Actions cache): unchanged
+      # dependencies aren't reinstalled.
+      - name: Build the API image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: ci.local/ledgerly-api:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - name: Build the web image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: ci.local/ledgerly-web:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      - name: Operations scripts pass shellcheck
+        run: shellcheck deploy/scripts/*.sh
+
+      - name: Prometheus config is valid and alert rules pass their unit tests
+        run: |
+          docker run --rm -v "$PWD/deploy/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.1 check config /p/prometheus.yml
+          docker run --rm -v "$PWD/deploy/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.1 test rules /p/alerts.test.yml
+
+      - name: A throwaway production environment
+        run: |
+          cat > deploy/.env <<EOF
+          REGISTRY=ci.local
+          SITE_ADDRESS=localhost
+          POSTGRES_PASSWORD=$(openssl rand -hex 16)
+          ENCRYPTION_KEY=$(openssl rand -base64 32)
+          EOF
+
+      - name: First deploy, onto an empty server
+        run: SKIP_PULL=1 deploy/scripts/deploy.sh ${{ github.sha }}
+
+      - name: Rolling deploy of a second version
+        run: |
+          docker tag ci.local/ledgerly-api:${{ github.sha }} ci.local/ledgerly-api:next
+          docker tag ci.local/ledgerly-web:${{ github.sha }} ci.local/ledgerly-web:next
+          SKIP_PULL=1 deploy/scripts/deploy.sh next
+
+      - name: Back up, then prove the backup restores
+        run: |
+          deploy/scripts/backup.sh
+          IMAGE_TAG=next deploy/scripts/restore-drill.sh
+
+      - name: Container logs
+        if: failure()
+        run: IMAGE_TAG=next docker compose --env-file deploy/.env -f deploy/compose.yaml logs --tail 80
+
   security:
     name: Dependency audit · Secret scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # full history, so the secret scan sees every commit
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       # No `cache: pnpm` here: this job never installs packages (`pnpm audit` only
       # reads the lockfile), so there's no package store to save, and setup-node's
       # post-job cache step FAILS the job when the folder doesn't exist.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
@@ -158,6 +233,6 @@ jobs:
       - run: pnpm audit --prod --audit-level=high
 
       # Leaked API keys, passwords and tokens anywhere in the git history.
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

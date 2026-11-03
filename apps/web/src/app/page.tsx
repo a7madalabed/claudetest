@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 // Always render on request so the API status is live, not frozen at build time.
 export const dynamic = "force-dynamic";
 
-const CURRENT_STAGE = 13;
+/** How many of the stages below are finished. */
+const COMPLETED_STAGES = 14;
 
 const stages = [
   "Foundations & architecture",
@@ -38,12 +39,14 @@ export default function HomePage() {
 
       <header className="animate-rise space-y-4">
         <p className="font-mono text-caption tracking-widest text-primary uppercase">
-          Stage {CURRENT_STAGE} · Testing strategy
+          {COMPLETED_STAGES === stages.length
+            ? `All ${stages.length} stages complete`
+            : `Stage ${COMPLETED_STAGES + 1} · ${stages[COMPLETED_STAGES]}`}
         </p>
         <h1 className="text-display">Ledgerly</h1>
         <p className="max-w-prose text-lg text-pretty text-muted-foreground">
-          Your money, beautifully organised. The web app, API and shared package are wired together,
-          and every pixel now comes from a tested design system.
+          Your money, beautifully organised. Built in fourteen stages, from the first design token
+          to a tested, observable, self-healing production deployment.
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
           <Button asChild size="lg">
@@ -80,8 +83,8 @@ export default function HomePage() {
         <ol className="grid gap-1.5 sm:grid-cols-2">
           {stages.map((stage, index) => {
             const number = index + 1;
-            const done = number < CURRENT_STAGE;
-            const current = number === CURRENT_STAGE;
+            const done = number <= COMPLETED_STAGES;
+            const current = number === COMPLETED_STAGES + 1;
             return (
               <li key={stage} className="flex items-center gap-3 text-sm">
                 <span className="w-5 font-mono text-xs text-muted-foreground tabular-nums">

@@ -13,7 +13,13 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.ts"],
       // Process entry points (they only wire things together and listen on a port) and test helpers.
-      exclude: ["src/**/*.test.ts", "src/test/**", "src/server.ts", "src/worker.ts"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/test/**",
+        "src/server.ts",
+        "src/worker.ts",
+        "src/migrate.ts",
+      ],
       // A ratchet, set just under today's numbers: coverage may rise, never quietly fall.
       thresholds: { statements: 86, branches: 72, functions: 88, lines: 90 },
     },

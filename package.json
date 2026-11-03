@@ -13,7 +13,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "e2e:build": "turbo run build --filter=@ledgerly/api && pnpm --filter @ledgerly/e2e build:web",
+    "e2e:build": "turbo run build --filter=@ledgerly/api --filter=@ledgerly/web",
     "e2e": "pnpm e2e:build && pnpm --filter @ledgerly/e2e e2e",
     "e2e:ui": "pnpm e2e:build && pnpm --filter @ledgerly/e2e e2e:ui",
     "format": "prettier --write .",

@@ -17,11 +17,11 @@ pnpm e2e:ui     # the same in Playwright's UI mode: watch, pause, time-travel
 | ---------------------- | ----------------------------------------------------------------------- |
 | `playwright.config.ts` | Servers to start, retries (CI only), traces, browser settings           |
 | `scripts/servers.ts`   | Resets the e2e database, starts the built API and worker on port 4100   |
-| `scripts/build-web.ts` | Builds the web app into `apps/web/.next-e2e`, pointed at the e2e API    |
 | `src/fixtures.ts`      | A fresh user per test, an account, categories, an API client, axe scans |
 | `tests/*.spec.ts`      | The journeys, plus accessibility scans of every page in both themes     |
 
-The suite uses its own ports (web 3100, API 4100) and database
+The web app runs from its normal standalone build (`apps/web/.next/standalone`),
+with `API_URL` given at runtime. The suite uses its own ports (web 3100, API 4100) and database
 (`ledgerly_e2e_test`), so it runs alongside `pnpm dev` without touching your data.
 Override with `E2E_WEB_PORT`, `E2E_API_PORT` and `E2E_DATABASE_URL`.
 
