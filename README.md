@@ -23,6 +23,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 13  | [Testing strategy](./docs/stage-13-testing-strategy.md)                       | ✅ Done |
 | 14  | [Deployment & operations](./docs/stage-14-deployment-and-operations.md)       | ✅ Done |
 | 15  | [Launch readiness](./docs/stage-15-launch-readiness.md)                       | ✅ Done |
+| 16  | [Launch blockers](./docs/stage-16-launch-blockers.md)                         | ✅ Done |
 
 ## Repository layout
 
