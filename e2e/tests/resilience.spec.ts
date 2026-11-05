@@ -34,7 +34,11 @@ for (const { name, path, failing } of pages) {
           ? route.fulfill({
               status: 500,
               contentType: "application/json",
-              body: JSON.stringify({ status: 500, code: "internal_error", title: "Internal error" }),
+              body: JSON.stringify({
+                status: 500,
+                code: "internal_error",
+                title: "Internal error",
+              }),
             })
           : route.continue(),
     );
@@ -46,8 +50,6 @@ for (const { name, path, failing } of pages) {
 
     broken = false;
     await alert.getByRole("button", { name: "Try again" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "Couldn't load this" })).toHaveCount(
-      0,
-    );
+    await expect(page.getByRole("alert").filter({ hasText: "Couldn't load this" })).toHaveCount(0);
   });
 }

@@ -34,7 +34,10 @@ test.describe("first run", () => {
     await dialog.getByLabel("Balance today").fill("1250");
     await dialog.getByRole("button", { name: "Add account" }).click();
     await expect(page.getByText("Account “Everyday checking” added")).toBeVisible();
-    const card = page.getByRole("main").getByRole("listitem").filter({ hasText: "Everyday checking" });
+    const card = page
+      .getByRole("main")
+      .getByRole("listitem")
+      .filter({ hasText: "Everyday checking" });
     await expect(card).toContainText("$1,250.00");
 
     // And now the first expense goes in, and the balance follows.
