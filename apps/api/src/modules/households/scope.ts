@@ -21,6 +21,11 @@ declare module "fastify" {
       id: string;
       role: HouseholdRole;
       baseCurrency: string;
+      /**
+       * The household's IANA time zone. "Today" and "this month" on the server
+       * always mean the household's (Stage 17), never the server's UTC.
+       */
+      timeZone: string;
       /** Bumped by triggers on every data change: the response cache's key (Stage 12). */
       dataVersion: number;
     };
@@ -50,6 +55,7 @@ const membershipStatement = preparedFor((db: Database) =>
     .select({
       role: householdMembers.role,
       baseCurrency: households.baseCurrency,
+      timeZone: households.timeZone,
       // Same query, no extra round-trip: the version rides along with the membership check.
       dataVersion: householdDataVersions.version,
     })
@@ -95,6 +101,7 @@ const scope: FastifyPluginAsync = async (app) => {
       id: householdId!,
       role: membership.role,
       baseCurrency: membership.baseCurrency,
+      timeZone: membership.timeZone,
       dataVersion: membership.dataVersion ?? 0,
     };
   });

@@ -4,13 +4,18 @@ import type { NotificationDto } from "@ledgerly/shared";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { localMonth } from "./budgets";
+import { householdNow, localMonth } from "./budgets";
+import { useMe } from "./query/hooks";
 import { useBudgets } from "./query/budgets";
 import { useNotifications } from "./query/automation";
 
 /** How many budgets are over their limit this month — for the nav badge. */
 export function useOverBudgetCount(householdId: string | undefined) {
-  const { data } = useBudgets(householdId ?? "", localMonth(), { enabled: Boolean(householdId) });
+  const { data: me } = useMe();
+  const timeZone = me?.households.find((h) => h.id === householdId)?.timeZone;
+  const { data } = useBudgets(householdId ?? "", localMonth(householdNow(timeZone)), {
+    enabled: Boolean(householdId),
+  });
   return data?.budgets.filter((b) => b.status === "over").length ?? 0;
 }
 

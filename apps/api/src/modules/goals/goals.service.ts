@@ -5,11 +5,13 @@ import {
   eq,
   getAccountMonthEndBalances,
   goals,
+  households,
   type Database,
 } from "@ledgerly/db";
 import {
   addMonths,
   projectGoal,
+  todayIn,
   toYearMonth,
   type CreateGoalInput,
   type GoalDto,
@@ -20,7 +22,14 @@ import { notFound, unprocessable } from "../../lib/errors.js";
 /** 6 month-over-month changes need 7 COMPLETED month-ends (+ this month for today's balance). */
 const COMPLETED_MONTHS = 7;
 
-const today = () => new Date().toISOString().slice(0, 10);
+/** Today in the HOUSEHOLD's time zone (Stage 17): a goal's month-ends are its months. */
+async function householdToday(db: Database, householdId: string) {
+  const [household] = await db
+    .select({ timeZone: households.timeZone })
+    .from(households)
+    .where(eq(households.id, householdId));
+  return todayIn(household?.timeZone ?? "UTC");
+}
 
 async function withProjection(
   db: Database,
@@ -64,7 +73,7 @@ const selectGoals = (db: Database, householdId: string, goalId?: string) =>
     .innerJoin(accounts, eq(accounts.id, goals.accountId))
     .where(and(eq(goals.householdId, householdId), goalId ? eq(goals.id, goalId) : undefined));
 
-export async function listGoals(db: Database, householdId: string, onDate = today()) {
+export async function listGoals(db: Database, householdId: string, onDate: string) {
   const rows = await selectGoals(db, householdId).orderBy(asc(goals.createdAt));
   // One small query per goal: households have a handful of goals, so this is fine
   // (and simpler than one giant query). Run them concurrently.
@@ -87,7 +96,7 @@ async function getGoal(db: Database, householdId: string, goalId: string) {
     db,
     householdId,
     { ...row.goal, accountName: row.accountName, currency: row.currency },
-    today(),
+    await householdToday(db, householdId),
   );
 }
 

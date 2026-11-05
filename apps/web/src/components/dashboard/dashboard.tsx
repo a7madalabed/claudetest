@@ -40,6 +40,7 @@ import {
   trendRange,
   type TrendRange,
 } from "@/lib/dashboard";
+import { householdNow } from "@/lib/budgets";
 import { spring } from "@/lib/motion";
 import { useAccounts, useMe } from "@/lib/query/hooks";
 import {
@@ -74,16 +75,18 @@ export function Dashboard({ householdId }: { householdId: string }) {
   const { data: me } = useMe();
   const household = useCurrentHousehold();
   const currency = household?.baseCurrency ?? "USD";
-  const windows = useMemo(() => monthWindows(), []);
+  const timeZone = household?.timeZone;
+  // Recomputed if the household (and so its time zone) changes.
+  const windows = useMemo(() => monthWindows(householdNow(timeZone)), [timeZone]);
 
   // ── This month (fixed period) ──────────────────────────────────────────────
   const accounts = useAccounts(householdId);
   const daily = useDailyCashflow(householdId, windows.both);
-  const yearOfNetWorth = useNetWorth(householdId, trendRange("12m"));
+  const yearOfNetWorth = useNetWorth(householdId, trendRange("12m", householdNow(timeZone)));
   const netWorth = accounts.data
     ?.filter((a) => a.currency === currency)
     .reduce((sum, a) => sum + a.balanceMinor, 0);
-  const mtd = daily.data ? monthToDate(daily.data.days) : undefined;
+  const mtd = daily.data ? monthToDate(daily.data.days, householdNow(timeZone)) : undefined;
   const points = yearOfNetWorth.data?.points;
   const lastMonthEnd =
     points && points.length >= 2 ? points[points.length - 2]!.balanceMinor : undefined;
@@ -96,7 +99,7 @@ export function Dashboard({ householdId }: { householdId: string }) {
   const rangeParam = searchParams.get("range");
   const range: TrendRange =
     rangeParam && rangeParam in TREND_RANGES ? (rangeParam as TrendRange) : "6m";
-  const trend = useMemo(() => trendRange(range), [range]);
+  const trend = useMemo(() => trendRange(range, householdNow(timeZone)), [range, timeZone]);
 
   const layout = useDashboardLayout(householdId);
   const saveLayout = useSaveDashboardLayout(householdId);

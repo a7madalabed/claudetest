@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
+import { todayIn } from "@ledgerly/shared";
 import fp from "fastify-plugin";
 
 declare module "fastify" {
@@ -53,7 +54,7 @@ export class LruCache<V> {
 /**
  * Response cache + ETags for expensive household reads (Stage 12).
  *
- *   key  = household · data version · today (UTC) · URL
+ *   key  = household · data version · today (in the household's time zone) · URL
  *   ETag = hash of the key
  *
  * Correct by construction: a write bumps the version (database trigger, same
@@ -75,7 +76,11 @@ export const responseCachePlugin = fp(
       const household = request.household;
       if (!household) return;
 
-      const key = `${household.id}:${household.dataVersion}:${new Date().toISOString().slice(0, 10)}:${request.url}`;
+      // "Today" is the household's (Stage 17): answers like "this month so far"
+      // change at ITS midnight. The zone is in the key too, so changing the
+      // household's time zone can't serve answers computed for the old one.
+      const today = todayIn(household.timeZone);
+      const key = `${household.id}:${household.dataVersion}:${household.timeZone}:${today}:${request.url}`;
       const etag = `"${createHash("sha1").update(key).digest("base64url").slice(0, 16)}"`;
       // private: only the user's browser may store it (never a shared proxy);
       // no-cache: store it, but always ask us first (we answer 304 when unchanged).

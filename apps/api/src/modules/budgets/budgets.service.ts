@@ -17,6 +17,7 @@ import {
   STATUS_RANK,
   addMonths,
   computeBudgetMonth,
+  todayIn,
   toYearMonth,
   type BudgetDto,
   type CreateBudgetInput,
@@ -199,6 +200,8 @@ export async function updateBudget(
   householdId: string,
   budgetId: string,
   input: UpdateBudgetInput,
+  /** The household's: "this month" is its month (Stage 17). */
+  timeZone: string,
 ) {
   const month = await db.transaction(async (tx) => {
     const [budget] = await tx
@@ -228,7 +231,7 @@ export async function updateBudget(
     }
     // The month to show the result for: the edited month, else this month (or the start, if later).
     const start = toYearMonth(budget.startMonth);
-    const now = new Date().toISOString().slice(0, 7);
+    const now = toYearMonth(todayIn(timeZone));
     return input.effectiveMonth ?? (start > now ? start : now);
   });
   return getBudgetFor(db, householdId, budgetId, month);

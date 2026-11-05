@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useHouseholdNow } from "@/components/app-shell/household-context";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,6 +47,7 @@ export function GoalDialog({
   accounts: AccountDto[] | undefined;
   goals: GoalDto[] | undefined;
 }) {
+  const now = useHouseholdNow();
   const create = useCreateGoal(householdId);
   const update = useUpdateGoal(householdId);
   const remove = useDeleteGoal(householdId);
@@ -97,7 +99,7 @@ export function GoalDialog({
       form.setError("target", { message: "Enter an amount like 5000" }, { shouldFocus: true });
       return;
     }
-    if (values.targetDate && values.targetDate <= localToday()) {
+    if (values.targetDate && values.targetDate <= localToday(now)) {
       form.setError("targetDate", { message: "Pick a date in the future" }, { shouldFocus: true });
       return;
     }

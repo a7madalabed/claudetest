@@ -3,6 +3,7 @@
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { useHouseholdNow } from "@/components/app-shell/household-context";
 import { BarList, type BarListItem } from "@/components/charts/bar-list";
 import { ChartCard } from "@/components/charts/chart-card";
 import { COLUMN_CHART_HEIGHT, ColumnChart } from "@/components/charts/column-chart";
@@ -274,7 +275,8 @@ export function SpendingPaceCard({
   currency: string;
   pending: boolean;
 }) {
-  const pace = days ? spendingPace(days) : undefined;
+  const now = useHouseholdNow();
+  const pace = days ? spendingPace(days, now) : undefined;
   const today = pace?.filter((p) => p.thisMonth !== null).at(-1);
   const diff = today && today.lastMonth !== null ? today.thisMonth! - today.lastMonth : null;
   const series = [
@@ -419,12 +421,13 @@ export function BudgetsWidget({
   currency: string;
   handle: ReactNode;
 }) {
-  const month = localMonth();
+  const now = useHouseholdNow();
+  const month = localMonth(now);
   const query = useBudgets(householdId, month);
   const hydrated = useHydrated(); // the app shell may already have this query (see useHydrated)
   const data = hydrated ? query.data : undefined;
   const isPending = !hydrated || query.isPending;
-  const elapsed = monthElapsed(month);
+  const elapsed = monthElapsed(month, now);
   // The API sorts most-urgent first, so the top five are the ones worth a glance.
   const top = data?.budgets.slice(0, 5) ?? [];
   const over = data?.budgets.filter((b) => b.status === "over").length ?? 0;

@@ -70,6 +70,7 @@ export const budgetRoutes: FastifyPluginAsyncZod = async (app) => {
         request.params.householdId,
         request.params.budgetId,
         request.body,
+        request.household!.timeZone,
       ),
   );
 

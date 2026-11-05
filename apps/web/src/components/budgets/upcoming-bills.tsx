@@ -3,6 +3,7 @@
 import type { CategoryDto, RecurringSeriesDto } from "@ledgerly/shared";
 import { CalendarClock, Repeat, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { useHouseholdNow } from "@/components/app-shell/household-context";
 import { Badge } from "@/components/ui/badge";
 import { useCreateRule } from "@/lib/query/automation";
 import { motion } from "motion/react";
@@ -77,7 +78,7 @@ export function UpcomingBills({
       },
     );
   }
-  const today = localToday();
+  const today = localToday(useHouseholdNow());
   const bills =
     data?.series.filter((s) => s.amountMinor < 0 && daysUntil(s.nextDate, today) <= 30) ?? [];
   const total = bills.reduce((sum, s) => sum + -s.amountMinor, 0);

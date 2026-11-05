@@ -12,7 +12,6 @@ import {
 } from "@ledgerly/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { localToday } from "../budgets";
 import { api } from "../api/client";
 
 const base = (householdId: string) => `/v1/households/${householdId}`;
@@ -86,8 +85,9 @@ export function useGoals(householdId: string) {
   return useQuery({
     queryKey: budgetKeys.goals(householdId),
     queryFn: async ({ signal }) =>
+      // No ?today=: "today" is the household's, and the server knows its zone (Stage 17).
       (
-        await api(`${base(householdId)}/goals?today=${localToday()}`, {
+        await api(`${base(householdId)}/goals`, {
           schema: z.object({ data: z.array(GoalSchema) }),
           signal,
         })
@@ -140,7 +140,7 @@ export function useRecurring(householdId: string) {
   return useQuery({
     queryKey: budgetKeys.recurring(householdId),
     queryFn: ({ signal }) =>
-      api(`${base(householdId)}/reports/recurring?today=${localToday()}`, {
+      api(`${base(householdId)}/reports/recurring`, {
         schema: RecurringReportSchema,
         signal,
       }),

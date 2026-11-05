@@ -1,12 +1,39 @@
 import { addMonths, type BudgetStatus, type YearMonth } from "@ledgerly/shared";
 
 /*
- * "Today" and "this month" come from the USER's clock, not the server's: at
- * 11pm on the 31st in California it's already the 1st in UTC, and a budget
- * page that jumped to next month would be wrong. The API takes the month as a
- * parameter for exactly this reason.
+ * "Today" and "this month" are the HOUSEHOLD's (Stage 17): at 11pm on the 31st
+ * in California it's already the 1st in UTC, and a budget page that jumped to
+ * next month would be wrong. Before Stage 17 the browser's clock decided, so
+ * two members in different zones, the server's alerts and the budget page
+ * could each be in a different month. Now everyone uses the household's zone
+ * (as the API does): pass `householdNow(timeZone)` as `now` below.
  */
 const pad = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * "Now" as the household's wall clock: a Date whose LOCAL fields (getDate(),
+ * getMonth()…) read the date and time in `timeZone`, so the helpers below,
+ * which read local fields, work unchanged. Use it for calendar maths only,
+ * never as a real instant (to store or send).
+ */
+export function householdNow(timeZone: string | undefined, now = new Date()): Date {
+  if (!timeZone) return now;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hourCycle: "h23",
+    })
+      .formatToParts(now)
+      .map((part) => [part.type, Number(part.value)]),
+  ) as Record<"year" | "month" | "day" | "hour" | "minute" | "second", number>;
+  return new Date(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+}
 
 export const localToday = (now = new Date()) =>
   `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;

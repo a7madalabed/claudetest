@@ -1,5 +1,5 @@
 import { createDb } from "@ledgerly/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../app.js";
 import { API_TEST_DATABASE_URL } from "../test/database.js";
 import { OUTSIDER, OWNER, request, testEnv, useTestApp } from "../test/helpers.js";
@@ -32,6 +32,30 @@ describe("response cache", () => {
   };
   const juneSpending = (body: { months: Array<{ month: string; spendingMinor: number }> }) =>
     body.months.find((m) => m.month === "2026-06")!.spendingMinor;
+
+  it("starts a new day at the HOUSEHOLD's midnight, not UTC's (Stage 17)", async () => {
+    // Answers like "this month so far" change at midnight. For a household on
+    // UTC+14, local midnight is 10:00 UTC: keying the cache by the UTC date
+    // kept serving yesterday's answers until 24:00 UTC, 14 hours later.
+    const household = `/v1/households/${ctx.fixtures.householdId}`;
+    const moved = await request(ctx.app, OWNER, {
+      method: "PATCH",
+      url: household,
+      payload: { timeZone: "Pacific/Kiritimati" },
+    });
+    expect(moved.statusCode).toBe(204);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-06-30T09:30:00Z")); // 23:30 on the 30th there
+      const before = await get();
+      vi.setSystemTime(new Date("2026-06-30T10:30:00Z")); // 00:30 on July 1st: same UTC day
+      const after = await get({ "if-none-match": before.headers.etag as string });
+      expect(after.statusCode).toBe(200);
+      expect(after.headers["x-cache"]).toBe("miss");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("serves the second identical read from the cache", async () => {
     const first = await get();

@@ -5,6 +5,7 @@ import {
   HouseholdParamsSchema,
   IdSchema,
   UpdateGoalSchema,
+  todayIn,
 } from "@ledgerly/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -29,7 +30,11 @@ export const goalRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({
-      data: await service.listGoals(app.db, request.params.householdId, request.query.today),
+      data: await service.listGoals(
+        app.db,
+        request.params.householdId,
+        request.query.today ?? todayIn(request.household!.timeZone),
+      ),
     }),
   );
 

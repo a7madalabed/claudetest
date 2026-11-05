@@ -9,6 +9,7 @@ import {
   RecurringReportSchema,
   SpendingByCategoryQuerySchema,
   SpendingByCategoryReportSchema,
+  todayIn,
 } from "@ledgerly/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -102,7 +103,7 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
       service.recurringReport(
         app.db,
         request.params.householdId,
-        request.query.today ?? new Date().toISOString().slice(0, 10),
+        request.query.today ?? todayIn(request.household!.timeZone),
       ),
   );
 

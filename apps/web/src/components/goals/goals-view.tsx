@@ -4,7 +4,7 @@ import type { GoalDto } from "@ledgerly/shared";
 import { CalendarCheck, Goal, Pencil, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { useCurrentHousehold } from "@/components/app-shell/household-context";
+import { useCurrentHousehold, useHouseholdNow } from "@/components/app-shell/household-context";
 import { Page } from "@/components/app-shell/page";
 import { NoAccountsNotice } from "@/components/overview/no-accounts";
 import { fullMoney, wholeMoney } from "@/components/charts/format";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatMonthYear } from "@/lib/budgets";
+import { formatMonthYear, localMonth } from "@/lib/budgets";
 import { fadeUp, spring, stagger } from "@/lib/motion";
 import { useGoals } from "@/lib/query/budgets";
 import { useAccounts } from "@/lib/query/hooks";
@@ -43,14 +43,13 @@ const monthsBetween = (from: string, to: string) => {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** The forecast as ONE plain sentence — more useful than a number with no context. */
-export function projectionText(goal: GoalDto) {
+export function projectionText(goal: GoalDto, thisMonth = new Date().toISOString().slice(0, 7)) {
   const money = (minor: number) => fullMoney(minor, goal.currency);
   const pace = `${wholeMoney(goal.monthlyPaceMinor, goal.currency)}/mo`;
   const target = goal.targetDate ? formatMonthYear(goal.targetDate.slice(0, 7)) : null;
   // A forecast decades away isn't useful as a date — say so plainly instead.
   const tooFar =
-    goal.projectedMonth !== null &&
-    monthsBetween(new Date().toISOString().slice(0, 7), goal.projectedMonth) > 120;
+    goal.projectedMonth !== null && monthsBetween(thisMonth, goal.projectedMonth) > 120;
   if (tooFar && (goal.status === "behind" || goal.status === "no_deadline")) {
     const required = goal.requiredMonthlyMinor
       ? ` Saving ${money(goal.requiredMonthlyMinor)}/mo would hit ${target}.`
@@ -167,6 +166,7 @@ export function GoalsView({ householdId }: { householdId: string }) {
 }
 
 function GoalCard({ goal, onEdit }: { goal: GoalDto; onEdit?: () => void }) {
+  const now = useHouseholdNow();
   const badge = statusBadge[goal.status];
   return (
     <Card className="flex h-full flex-col gap-5 p-5 sm:p-6">
@@ -197,7 +197,7 @@ function GoalCard({ goal, onEdit }: { goal: GoalDto; onEdit?: () => void }) {
         )}
       </div>
 
-      <p className="text-sm text-pretty">{projectionText(goal)}</p>
+      <p className="text-sm text-pretty">{projectionText(goal, localMonth(now))}</p>
 
       <dl className="mt-auto grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm">
         <div>

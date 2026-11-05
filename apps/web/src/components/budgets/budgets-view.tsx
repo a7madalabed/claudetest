@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Plus, Repeat } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useCurrentHousehold } from "@/components/app-shell/household-context";
+import { useCurrentHousehold, useHouseholdNow } from "@/components/app-shell/household-context";
 import { Page } from "@/components/app-shell/page";
 import { fullMoney } from "@/components/charts/format";
 import { AnimatedMoney } from "@/components/money";
@@ -39,7 +39,8 @@ export function BudgetsView({ householdId }: { householdId: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const param = searchParams.get("month");
-  const thisMonth = localMonth();
+  const now = useHouseholdNow();
+  const thisMonth = localMonth(now);
   const month = isValidMonth(param) ? param : thisMonth;
   const [direction, setDirection] = useState(0);
   const goTo = (next: string) => {
@@ -56,7 +57,7 @@ export function BudgetsView({ householdId }: { householdId: string }) {
   const accounts = useAccounts(householdId);
   const [dialog, setDialog] = useState<DialogState>({ open: false });
   useNewParam(() => setDialog({ open: true, budget: null }));
-  const elapsed = monthElapsed(month);
+  const elapsed = monthElapsed(month, now);
   const totals = data?.totals;
 
   return (
