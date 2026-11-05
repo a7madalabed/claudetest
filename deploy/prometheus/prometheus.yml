@@ -7,6 +7,13 @@ global:
 rule_files:
   - alerts.yml
 
+# Where firing alerts go: Alertmanager emails them (Stage 16). Evaluating
+# rules without this is a smoke detector with no siren.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
 scrape_configs:
   # DNS discovery instead of a fixed address: Docker's DNS returns EVERY
   # container of a service, so `docker compose up --scale api=3` is scraped

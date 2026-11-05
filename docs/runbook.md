@@ -33,7 +33,7 @@ One Linux server (2 vCPU / 4 GB is plenty to start; see Stage 12 for capacity).
    ```
    Then from your machine, copy the files once (CI does it on every deploy after this):
    ```bash
-   rsync -az --exclude .env deploy/ deploy@SERVER:ledgerly/deploy/
+   rsync -az --exclude .env --exclude alertmanager/alertmanager.yml deploy/ deploy@SERVER:ledgerly/deploy/
    ```
 4. On the server, create `~/ledgerly/deploy/.env` from `.env.example` and fill in every
    value. **Save `ENCRYPTION_KEY` and `POSTGRES_PASSWORD` in your password manager
@@ -52,12 +52,36 @@ One Linux server (2 vCPU / 4 GB is plenty to start; see Stage 12 for capacity).
      `DEPLOY_SSH_KEY` (a key made only for this), and `DEPLOY_KNOWN_HOSTS`, the
      output of `ssh-keyscan SERVER`, checked against the server's real fingerprint.
    - **Variables**: `SITE_ADDRESS` (your domain), then `DEPLOY_ENABLED` = `true`.
-7. Schedule backups and the weekly drill (`crontab -e` as `deploy`):
+7. **Backup encryption key** (off-site copies are encrypted; the script refuses
+   to upload without a key). On YOUR machine, not the server:
+   ```bash
+   age-keygen -o ledgerly-backup-key.txt     # apt/brew install age
    ```
-   15 * * * *  cd ~/ledgerly/deploy && BACKUP_UPLOAD='aws s3 cp {} s3://YOUR-BUCKET/ledgerly/' scripts/backup.sh >> backups/backup.log 2>&1
-   40 3 * * 1  cd ~/ledgerly/deploy && IMAGE_TAG=$(tail -n1 .deploy-history) scripts/restore-drill.sh >> backups/drill.log 2>&1
+   Put the whole file in your password manager. Its `# public key: age1…` line
+   is the `BACKUP_AGE_RECIPIENT` below: it can only ENCRYPT, so it's safe on the
+   server. The private key is the only way to read a backup; lose it and every
+   off-site copy is noise. (For the weekly drill to test the off-site copy, a
+   copy of the key goes on the server too, readable by `deploy` only:
+   `install -m 600 ledgerly-backup-key.txt ~/.ledgerly-backup-key.txt`. That
+   gives a thief of the server nothing they don't already have, the live
+   database, while a leaked bucket stays unreadable.)
+8. **Check-in URLs**: create two checks at a "dead man's switch" service
+   (healthchecks.io is free for this; Cronitor and Better Stack work the same):
+   one expected **hourly** for backups, one **weekly** for the drill. Each
+   gives you a URL. It emails you when the scripts STOP checking in, which is
+   how a broken backup gets noticed before you need it.
+9. Schedule backups and the weekly drill (`crontab -e` as `deploy`). The drill
+   restores the newest OFF-SITE copy: what you'd really have after losing this server.
    ```
-8. Start monitoring: `dc --profile monitoring up -d prometheus`.
+   15 * * * *  cd ~/ledgerly/deploy && BACKUP_UPLOAD='aws s3 cp {} s3://YOUR-BUCKET/ledgerly/' BACKUP_AGE_RECIPIENT=age1… BACKUP_HEARTBEAT_URL=https://hc-ping.com/… scripts/backup.sh >> backups/backup.log 2>&1
+   40 3 * * 1  cd ~/ledgerly/deploy && f=$(aws s3 ls s3://YOUR-BUCKET/ledgerly/ | grep -o 'ledgerly-[0-9TZ]*\.dump\.age' | sort | tail -n1) && for x in "$f" "${f%.dump.age}.sha256" "${f%.dump.age}.counts.json"; do aws s3 cp "s3://YOUR-BUCKET/ledgerly/$x" /tmp/drill/; done && IMAGE_TAG=$(tail -n1 .deploy-history) BACKUP_AGE_IDENTITY=~/.ledgerly-backup-key.txt DRILL_HEARTBEAT_URL=https://hc-ping.com/… scripts/restore-drill.sh "/tmp/drill/$f" >> backups/drill.log 2>&1; rm -rf /tmp/drill
+   ```
+   (`mkdir -p /tmp/drill` first; adapt `aws s3` to your storage's tool.)
+10. **Alerts by email**: `cp alertmanager/alertmanager.example.yml alertmanager/alertmanager.yml`,
+    fill in your SMTP login and the address to alert (the comments say how to
+    check it), then start monitoring: `dc --profile monitoring up -d prometheus alertmanager`.
+    Test the whole path once: `dc stop worker`, wait ~3 minutes for a
+    "LedgerlyWorkerDown" email, then `dc start worker` (a "resolved" email follows).
 
 ## Email
 
@@ -150,7 +174,9 @@ rather than freezing the app behind them.
 
 `scripts/backup.sh` writes `backups/ledgerly-<UTC>.dump` with a `.sha256` and
 a `.counts.json` (exact row counts from the same snapshot), uploads them if
-`BACKUP_UPLOAD` is set, and keeps 14 days locally. Check it's working:
+`BACKUP_UPLOAD` is set (the dump encrypted for `BACKUP_AGE_RECIPIENT`), checks
+in at `BACKUP_HEARTBEAT_URL`, and keeps 14 days locally. If the check-in service
+emails you, look here first:
 
 ```bash
 ls -lt backups | head
@@ -166,7 +192,12 @@ works and the bucket has its own retention (and, ideally, object lock).
 
 ```bash
 scripts/restore-drill.sh backups/ledgerly-<UTC>.dump
+# an off-site copy (download it with its .sha256 and .counts.json first):
+BACKUP_AGE_IDENTITY=ledgerly-backup-key.txt scripts/restore-drill.sh ledgerly-<UTC>.dump.age
 ```
+
+An encrypted copy restores the same way once decrypted:
+`age -d -i ledgerly-backup-key.txt -o ledgerly-<UTC>.dump ledgerly-<UTC>.dump.age`.
 
 **Then, to replace production's data** (this destroys what's there now):
 
@@ -204,8 +235,13 @@ liveness) and `https://SITE/api/health` (API liveness). Don't use
 `/api/health/ready` for uptime: it truthfully answers 503 from a draining
 instance during every deploy.
 
-Prometheus only _evaluates_ alerts; to be notified, add Alertmanager with a
-receiver (email, Slack, PagerDuty).
+Prometheus evaluates the alert rules; **Alertmanager** emails them (setup step
+10). Every alert below arrives as one email per problem, repeated every 4 hours
+while it lasts, plus a "resolved" email when it ends. If you'd rather get them
+in Slack or PagerDuty, add a receiver to `alertmanager/alertmanager.yml`.
+
+One thing Prometheus can't tell you is that the whole server is down, because
+it's on that server. That's what the outside uptime check above is for.
 
 ## Secrets
 

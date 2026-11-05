@@ -8,6 +8,18 @@
 # on the same disk as the database dies with it. Set BACKUP_UPLOAD to a command
 # that uploads one file, e.g.  BACKUP_UPLOAD='aws s3 cp {} s3://my-bucket/ledgerly/'
 #
+# Off-site copies are ENCRYPTED (Stage 16): the dump holds every household's
+# finances, emails and password hashes, and a bucket is one wrong setting away
+# from public. Set BACKUP_AGE_RECIPIENT to an `age` public key (age1…); the
+# matching private key, kept elsewhere, is the only way to read the copies.
+# The script refuses to upload without it (BACKUP_UPLOAD_UNENCRYPTED=1 to
+# insist, e.g. for a bucket that encrypts with its own keys you control).
+#
+# Set BACKUP_HEARTBEAT_URL to a check-in URL (healthchecks.io, Cronitor, Better
+# Stack…): it's requested after every SUCCESSFUL backup, and that service
+# emails you when the requests stop. A backup that silently stopped working is
+# found in an hour, not on the day you need it.
+#
 # What's in the box:
 #   <name>.dump         pg_dump "custom" format: compressed, restorable table by table
 #   <name>.sha256       checksum, so a corrupted copy is detected before you rely on it
@@ -22,6 +34,17 @@ KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
 mkdir -p "$DIR"
 name="ledgerly-$(date -u +%Y%m%dT%H%M%SZ)"
 log() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
+RECIPIENT="${BACKUP_AGE_RECIPIENT:-}"
+
+# Decide BEFORE dumping: an upload that's going to be refused should fail now.
+if [[ -n "${BACKUP_UPLOAD:-}" && -z "$RECIPIENT" && "${BACKUP_UPLOAD_UNENCRYPTED:-}" != "1" ]]; then
+  log "refusing to upload an unencrypted backup: set BACKUP_AGE_RECIPIENT (see docs/runbook.md)" >&2
+  exit 1
+fi
+if [[ -n "$RECIPIENT" ]] && ! command -v age >/dev/null; then
+  log "BACKUP_AGE_RECIPIENT is set but \`age\` isn't installed (apt install age)" >&2
+  exit 1
+fi
 
 # psql/pg_dump run INSIDE the postgres container: always the same version as the server.
 db() { IMAGE_TAG="${IMAGE_TAG:-unused}" docker compose --env-file "$ENV_FILE" exec -T postgres "$@"; }
@@ -55,11 +78,26 @@ mv "$DIR/$name.dump.partial" "$DIR/$name.dump"
 log "done: $(du -h "$DIR/$name.dump" | cut -f1), $(grep -o ',' "$DIR/$name.counts.json" | wc -l | awk '{print $1 + 1}') tables"
 
 if [[ -n "${BACKUP_UPLOAD:-}" ]]; then
-  for f in "$DIR/$name.dump" "$DIR/$name.sha256" "$DIR/$name.counts.json"; do
+  dump="$DIR/$name.dump"
+  if [[ -n "$RECIPIENT" ]]; then
+    log "encrypting for $RECIPIENT"
+    age --recipient "$RECIPIENT" --output "$dump.age" "$dump"
+    dump="$dump.age"
+  fi
+  # The checksum is of the PLAIN dump: the drill checks it after decrypting.
+  for f in "$dump" "$DIR/$name.sha256" "$DIR/$name.counts.json"; do
     log "uploading $f"
     eval "${BACKUP_UPLOAD//\{\}/\"$f\"}"
   done
+  # The local copy stays plain (it sits next to the database it came from).
+  [[ "$dump" == *.age ]] && rm -f "$dump"
 fi
 
 # Local retention. (Off-site retention is the storage's job, e.g. bucket lifecycle rules.)
 find "$DIR" -name 'ledgerly-*' -type f -mtime "+$KEEP_DAYS" -print -delete | sed 's/^/deleted old backup: /'
+
+# Every step above succeeded (set -e stops at the first failure): check in.
+if [[ -n "${BACKUP_HEARTBEAT_URL:-}" ]]; then
+  curl -fsS --max-time 10 --retry 3 "$BACKUP_HEARTBEAT_URL" >/dev/null ||
+    log "warning: the heartbeat check-in failed (the backup itself is fine)"
+fi

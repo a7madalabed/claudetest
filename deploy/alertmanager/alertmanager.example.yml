@@ -1,0 +1,31 @@
+# Alertmanager: turns Prometheus alerts into EMAILS (Stage 16). Without it,
+# the alert rules in ../prometheus/alerts.yml fire, and nobody hears them.
+#
+#   cp alertmanager.example.yml alertmanager.yml    # ON THE SERVER; it's git-ignored
+#
+# then fill in the four SMTP values and the address to alert. Your email
+# provider's SMTP credentials (the same ones as SMTP_URL in .env) work here.
+# Check it before starting:
+#   docker run --rm -v "$PWD:/c" --entrypoint amtool prom/alertmanager:v0.29.0 check-config /c/alertmanager.yml
+
+global:
+  smtp_smarthost: smtp.example.com:587 # host:port
+  smtp_from: Ledgerly alerts <alerts@ledgerly.example.com>
+  smtp_auth_username: USERNAME
+  smtp_auth_password: PASSWORD
+  smtp_require_tls: true
+
+route:
+  receiver: on-call
+  # One email per kind of problem, not one per instance or per evaluation.
+  group_by: [alertname]
+  group_wait: 30s # collect what fires together into one email
+  group_interval: 5m # news about an ongoing group at most this often
+  repeat_interval: 4h # still broken? say so again, but don't spam
+
+receivers:
+  - name: on-call
+    email_configs:
+      - to: you@example.com
+        # "Resolved" emails too: knowing it's fixed matters as much.
+        send_resolved: true

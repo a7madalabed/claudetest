@@ -30,3 +30,6 @@ deploy/.deploy-history
 
 # Database backups made on a server (deploy/scripts/backup.sh)
 deploy/backups/
+
+# Alertmanager's real config holds an SMTP password (made from the .example)
+deploy/alertmanager/alertmanager.yml

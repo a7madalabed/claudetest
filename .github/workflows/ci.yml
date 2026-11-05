@@ -199,6 +199,9 @@ jobs:
           docker run --rm -v "$PWD/deploy/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.1 check config /p/prometheus.yml
           docker run --rm -v "$PWD/deploy/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.1 test rules /p/alerts.test.yml
 
+      - name: Alertmanager config (the example servers copy) is valid
+        run: docker run --rm -v "$PWD/deploy/alertmanager:/c" --entrypoint amtool prom/alertmanager:v0.29.0 check-config /c/alertmanager.example.yml
+
       - name: A throwaway production environment
         run: |
           cat > deploy/.env <<EOF

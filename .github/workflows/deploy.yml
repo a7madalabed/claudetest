@@ -125,11 +125,14 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
           # Pinned host key: refuse to talk to anything pretending to be our server.
           echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Ship the deploy files (never .env — it lives only on the server)
+      - name: Ship the deploy files (never the server's own secrets)
         env:
           TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
         run: |
-          rsync -az --delete --exclude .env --exclude backups --exclude .deploy-history \
+          # Server-only files are excluded, or --delete would erase them:
+          # secrets (.env, Alertmanager's SMTP login), backups, deploy history.
+          rsync -az --delete --exclude .env --exclude alertmanager/alertmanager.yml \
+            --exclude backups --exclude .deploy-history \
             deploy/ "$TARGET:ledgerly/deploy/"
       - name: Roll out (rolls back by itself if the new version is unhealthy)
         env:
