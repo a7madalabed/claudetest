@@ -55,8 +55,13 @@ export function ResetPasswordForm({ token }: { token: string }) {
   }
 
   const expired = isApiError(reset.error) && reset.error.code === "link_expired";
+  // method="post": if this form is ever submitted before the app's JavaScript
+  // takes over (a slow connection, a tab opened before a deploy), the browser
+  // must not put the fields, a password among them, in the URL, where history
+  // and access logs keep them (Stage 16).
   return (
     <form
+      method="post"
       noValidate
       className="grid gap-4"
       onSubmit={form.handleSubmit(({ password }) =>

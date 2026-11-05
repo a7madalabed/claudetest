@@ -39,8 +39,12 @@ export function MfaForm({ next }: { next?: string }) {
     submit(mode === "app" ? code : recovery);
   }
 
+  // method="post": if this form is ever submitted before the app's JavaScript
+  // takes over (a slow connection, a tab opened before a deploy), the browser
+  // must not put the fields, a password among them, in the URL, where history
+  // and access logs keep them (Stage 16).
   return (
-    <form onSubmit={onSubmit} noValidate className="grid gap-5">
+    <form method="post" onSubmit={onSubmit} noValidate className="grid gap-5">
       <FormAlert error={verify.error} />
       <AnimatePresence mode="wait" initial={false}>
         <motion.div

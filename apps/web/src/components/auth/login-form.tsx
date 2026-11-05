@@ -64,8 +64,12 @@ export function LoginForm({ next, email }: { next?: string; email?: string }) {
     }),
   );
 
+  // method="post": if this form is ever submitted before the app's JavaScript
+  // takes over (a slow connection, a tab opened before a deploy), the browser
+  // must not put the fields, a password among them, in the URL, where history
+  // and access logs keep them (Stage 16).
   return (
-    <form onSubmit={onSubmit} noValidate className="grid gap-4">
+    <form method="post" onSubmit={onSubmit} noValidate className="grid gap-4">
       <FormAlert error={login.error} />
       <Field label="Email" error={errors.email?.message}>
         <Input

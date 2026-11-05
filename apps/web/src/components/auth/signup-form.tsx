@@ -61,8 +61,12 @@ export function SignupForm({ next, email }: { next?: string; email?: string }) {
     isApiError(signup.error) &&
     (signup.error.fieldErrors.length > 0 || signup.error.code === "email_taken");
 
+  // method="post": if this form is ever submitted before the app's JavaScript
+  // takes over (a slow connection, a tab opened before a deploy), the browser
+  // must not put the fields, a password among them, in the URL, where history
+  // and access logs keep them (Stage 16).
   return (
-    <form onSubmit={onSubmit} noValidate className="grid gap-4">
+    <form method="post" onSubmit={onSubmit} noValidate className="grid gap-4">
       <FormAlert error={fieldLevel ? null : signup.error} />
       <Field label="Your name" error={errors.displayName?.message}>
         <Input

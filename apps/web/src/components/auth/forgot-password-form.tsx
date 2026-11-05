@@ -55,8 +55,13 @@ export function ForgotPasswordForm() {
     );
   }
 
+  // method="post": if this form is ever submitted before the app's JavaScript
+  // takes over (a slow connection, a tab opened before a deploy), the browser
+  // must not put the fields, a password among them, in the URL, where history
+  // and access logs keep them (Stage 16).
   return (
     <form
+      method="post"
       onSubmit={form.handleSubmit((values) => request.mutate(values))}
       noValidate
       className="grid gap-4"

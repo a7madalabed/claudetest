@@ -57,4 +57,22 @@ test.describe("signing up and in", () => {
     expect(await attempt(user.email)).toBe(await attempt(`nobody-${randomUUID()}@example.test`));
     await expect(page).toHaveURL(/\/login/);
   });
+
+  test("a password never ends up in the address bar, even when the page's code fails to load", async ({
+    page,
+  }) => {
+    // Stage 16: a form with no method is sent as GET, i.e. IN THE URL, if it's
+    // submitted before the app's JavaScript takes over (a slow connection, or a
+    // tab opened just before a deploy replaced the script files). The URL then
+    // sits in browser history and in the proxy's access log.
+    await page.route(/\/_next\/static\/chunks\//, (route) => route.abort());
+    for (const path of ["/login", "/signup"]) {
+      await page.goto(path);
+      await page.locator('input[name="email"]').fill("someone@example.test");
+      await page.locator('input[name="password"]').fill("a-secret-that-must-not-leak");
+      await page.locator('form button[type="submit"]').first().click();
+      await page.waitForLoadState("load");
+      expect(page.url()).not.toContain("a-secret-that-must-not-leak");
+    }
+  });
 });
