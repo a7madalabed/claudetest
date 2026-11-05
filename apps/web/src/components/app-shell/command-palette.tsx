@@ -13,6 +13,7 @@ import {
   Search,
   Sun,
   type LucideIcon,
+  Wallet,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -96,6 +97,13 @@ export function CommandPalette({
                     onSelect={run(() => router.push(`/app/${household.id}/goals?new=1`))}
                   >
                     New savings goal
+                  </PaletteItem>
+                  <PaletteItem
+                    icon={Wallet}
+                    keywords={["account", "bank", "card", "checking", "savings", "wallet", "loan"]}
+                    onSelect={run(() => router.push(`/app/${household.id}/accounts?new=1`))}
+                  >
+                    Add an account
                   </PaletteItem>
                   <PaletteItem
                     icon={FileUp}

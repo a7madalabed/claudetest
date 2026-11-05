@@ -5,6 +5,7 @@ import { FileSpreadsheet } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { NoAccountsNotice } from "@/components/overview/no-accounts";
 import { useCurrentHousehold } from "@/components/app-shell/household-context";
 import { timeAgo } from "@/components/app-shell/notification-bell";
 import { Page } from "@/components/app-shell/page";
@@ -102,7 +103,17 @@ export function ImportsView({ householdId }: { householdId: string }) {
           exit={{ opacity: 0, x: -24 }}
           transition={{ duration: 0.25, ease: ease.outQuint }}
         >
-          {step.name === "upload" && (
+          {step.name === "upload" && accounts.data && active.length === 0 && (
+            <NoAccountsNotice
+              householdId={householdId}
+              canEdit={canEdit}
+              className="mx-auto max-w-2xl"
+            >
+              A bank statement is imported INTO an account. Add the account it comes from, then come
+              back here.
+            </NoAccountsNotice>
+          )}
+          {step.name === "upload" && !(accounts.data && active.length === 0) && (
             <div className="mx-auto max-w-2xl space-y-5">
               <Field label="Import into">
                 <Select

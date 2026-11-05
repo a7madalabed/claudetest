@@ -27,6 +27,7 @@ import {
   useUpdateTransaction,
 } from "@/lib/query/transactions";
 import { cn } from "@/lib/utils";
+import { NoAccountsNotice } from "@/components/overview/no-accounts";
 import { CategoryPicker } from "./category-picker";
 
 export type SheetMode = { type: "create" } | { type: "edit"; transaction: TransactionDto };
@@ -209,206 +210,219 @@ export function TransactionSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-[28rem]" aria-describedby={undefined}>
-        <form onSubmit={onSubmit} noValidate className="flex h-full flex-col">
-          <div className="border-b border-border px-6 pt-5 pb-4">
-            <SheetTitle className="text-title">
-              {editing ? "Edit transaction" : "New transaction"}
-            </SheetTitle>
+        {/* Nothing to record INTO yet: say how to fix that, instead of an empty "Account" list. */}
+        {!editing && accounts !== undefined && activeAccounts.length === 0 ? (
+          <div className="flex h-full flex-col">
+            <div className="border-b border-border px-6 pt-5 pb-4">
+              <SheetTitle className="text-title">New transaction</SheetTitle>
+            </div>
+            <div className="px-6 py-5">
+              <NoAccountsNotice householdId={householdId} canEdit />
+            </div>
           </div>
+        ) : (
+          <form onSubmit={onSubmit} noValidate className="flex h-full flex-col">
+            <div className="border-b border-border px-6 pt-5 pb-4">
+              <SheetTitle className="text-title">
+                {editing ? "Edit transaction" : "New transaction"}
+              </SheetTitle>
+            </div>
 
-          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-            {/* Expense / Income / Transfer */}
-            <Controller
-              control={form.control}
-              name="kind"
-              render={({ field }) => (
-                <div
-                  role="radiogroup"
-                  aria-label="Type"
-                  className="grid grid-cols-3 rounded-xl bg-muted p-1"
-                >
-                  {Kind.options.map((option) => {
-                    const disabled = Boolean(editing) && (option === "transfer" || lockedTransfer);
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        role="radio"
-                        aria-checked={field.value === option}
-                        disabled={disabled && field.value !== option}
-                        onClick={() => {
-                          field.onChange(option);
-                          if (option !== kind) form.setValue("categoryId", null); // categories differ per kind
-                        }}
-                        className={cn(
-                          "relative rounded-lg py-1.5 text-sm font-medium capitalize transition-colors disabled:opacity-40",
-                          field.value === option
-                            ? "text-foreground"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {field.value === option && (
-                          <motion.span
-                            layoutId="kind-pill"
-                            transition={spring.snappy}
-                            className="absolute inset-0 rounded-lg bg-surface shadow-elevation-1"
-                          />
-                        )}
-                        <span className="relative">{option}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            />
-
-            {lockedTransfer && (
-              <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm text-muted-foreground">
-                <Lock className="mt-0.5 size-4 shrink-0" />
-                This is half of a transfer. You can rename it or add notes; to change the amount,
-                delete the transfer and record it again.
-              </p>
-            )}
-
-            <Field label="Amount" error={errors.amount?.message}>
-              <Input
-                {...form.register("amount")}
-                prefix={currencySymbol(currency)}
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder={currencyDecimals(currency) ? "0.00" : "0"}
-                disabled={lockedTransfer}
-                autoFocus={!editing}
-                className={cn(
-                  "h-12 text-xl font-semibold tabular-nums",
-                  kind === "income" && "text-positive",
-                  kind === "expense" && "text-negative",
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              {/* Expense / Income / Transfer */}
+              <Controller
+                control={form.control}
+                name="kind"
+                render={({ field }) => (
+                  <div
+                    role="radiogroup"
+                    aria-label="Type"
+                    className="grid grid-cols-3 rounded-xl bg-muted p-1"
+                  >
+                    {Kind.options.map((option) => {
+                      const disabled =
+                        Boolean(editing) && (option === "transfer" || lockedTransfer);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          role="radio"
+                          aria-checked={field.value === option}
+                          disabled={disabled && field.value !== option}
+                          onClick={() => {
+                            field.onChange(option);
+                            if (option !== kind) form.setValue("categoryId", null); // categories differ per kind
+                          }}
+                          className={cn(
+                            "relative rounded-lg py-1.5 text-sm font-medium capitalize transition-colors disabled:opacity-40",
+                            field.value === option
+                              ? "text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {field.value === option && (
+                            <motion.span
+                              layoutId="kind-pill"
+                              transition={spring.snappy}
+                              className="absolute inset-0 rounded-lg bg-surface shadow-elevation-1"
+                            />
+                          )}
+                          <span className="relative">{option}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               />
-            </Field>
 
-            <Field label="Description" error={errors.description?.message}>
-              <Input
-                {...form.register("description")}
-                placeholder={kind === "income" ? "e.g. Salary" : "e.g. Groceries at Trader Joe's"}
-                autoComplete="off"
-              />
-            </Field>
+              {lockedTransfer && (
+                <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm text-muted-foreground">
+                  <Lock className="mt-0.5 size-4 shrink-0" />
+                  This is half of a transfer. You can rename it or add notes; to change the amount,
+                  delete the transfer and record it again.
+                </p>
+              )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Date" error={errors.occurredOn?.message}>
-                {/* The native date picker: accessible, localised and touch-friendly on every device. */}
-                <Input type="date" {...form.register("occurredOn")} disabled={lockedTransfer} />
-              </Field>
-              <Field
-                label={kind === "transfer" ? "From account" : "Account"}
-                error={errors.accountId?.message}
-              >
-                <Controller
-                  control={form.control}
-                  name="accountId"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value || undefined}
-                      onValueChange={field.onChange}
-                      placeholder="Choose…"
-                      disabled={lockedTransfer}
-                      aria-label={kind === "transfer" ? "From account" : "Account"}
-                    >
-                      {activeAccounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name}
-                        </SelectItem>
-                      ))}
-                    </Select>
+              <Field label="Amount" error={errors.amount?.message}>
+                <Input
+                  {...form.register("amount")}
+                  prefix={currencySymbol(currency)}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder={currencyDecimals(currency) ? "0.00" : "0"}
+                  disabled={lockedTransfer}
+                  autoFocus={!editing}
+                  className={cn(
+                    "h-12 text-xl font-semibold tabular-nums",
+                    kind === "income" && "text-positive",
+                    kind === "expense" && "text-negative",
                   )}
                 />
               </Field>
-            </div>
 
-            {kind === "transfer" && !editing && (
-              <Field label="To account" error={errors.toAccountId?.message}>
-                <Controller
-                  control={form.control}
-                  name="toAccountId"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value || undefined}
-                      onValueChange={field.onChange}
-                      placeholder="Choose…"
-                      aria-label="To account"
-                    >
-                      {activeAccounts
-                        .filter((a) => a.id !== accountId)
-                        .map((a) => (
+              <Field label="Description" error={errors.description?.message}>
+                <Input
+                  {...form.register("description")}
+                  placeholder={kind === "income" ? "e.g. Salary" : "e.g. Groceries at Trader Joe's"}
+                  autoComplete="off"
+                />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Date" error={errors.occurredOn?.message}>
+                  {/* The native date picker: accessible, localised and touch-friendly on every device. */}
+                  <Input type="date" {...form.register("occurredOn")} disabled={lockedTransfer} />
+                </Field>
+                <Field
+                  label={kind === "transfer" ? "From account" : "Account"}
+                  error={errors.accountId?.message}
+                >
+                  <Controller
+                    control={form.control}
+                    name="accountId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={field.onChange}
+                        placeholder="Choose…"
+                        disabled={lockedTransfer}
+                        aria-label={kind === "transfer" ? "From account" : "Account"}
+                      >
+                        {activeAccounts.map((a) => (
                           <SelectItem key={a.id} value={a.id}>
                             {a.name}
                           </SelectItem>
                         ))}
-                    </Select>
-                  )}
+                      </Select>
+                    )}
+                  />
+                </Field>
+              </div>
+
+              {kind === "transfer" && !editing && (
+                <Field label="To account" error={errors.toAccountId?.message}>
+                  <Controller
+                    control={form.control}
+                    name="toAccountId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={field.onChange}
+                        placeholder="Choose…"
+                        aria-label="To account"
+                      >
+                        {activeAccounts
+                          .filter((a) => a.id !== accountId)
+                          .map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.name}
+                            </SelectItem>
+                          ))}
+                      </Select>
+                    )}
+                  />
+                </Field>
+              )}
+
+              {kind !== "transfer" && (
+                <Field label="Category">
+                  <Controller
+                    control={form.control}
+                    name="categoryId"
+                    render={({ field }) => (
+                      <CategoryPicker
+                        categories={categories}
+                        value={field.value}
+                        onChange={field.onChange}
+                        kind={kind === "income" ? "income" : "expense"}
+                      />
+                    )}
+                  />
+                </Field>
+              )}
+
+              {kind === "transfer" && editing && (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ArrowLeftRight className="size-4" /> Transfers move money between your accounts
+                  and aren&apos;t counted as income or spending.
+                </p>
+              )}
+
+              <Field label="Notes" error={errors.notes?.message}>
+                <textarea
+                  {...form.register("notes")}
+                  rows={3}
+                  placeholder="Optional"
+                  className="w-full resize-none rounded-lg border border-input bg-surface px-3 py-2 text-sm shadow-elevation-1 outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20"
                 />
               </Field>
-            )}
-
-            {kind !== "transfer" && (
-              <Field label="Category">
-                <Controller
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                    <CategoryPicker
-                      categories={categories}
-                      value={field.value}
-                      onChange={field.onChange}
-                      kind={kind === "income" ? "income" : "expense"}
-                    />
-                  )}
-                />
-              </Field>
-            )}
-
-            {kind === "transfer" && editing && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <ArrowLeftRight className="size-4" /> Transfers move money between your accounts and
-                aren&apos;t counted as income or spending.
-              </p>
-            )}
-
-            <Field label="Notes" error={errors.notes?.message}>
-              <textarea
-                {...form.register("notes")}
-                rows={3}
-                placeholder="Optional"
-                className="w-full resize-none rounded-lg border border-input bg-surface px-3 py-2 text-sm shadow-elevation-1 outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/20"
-              />
-            </Field>
-          </div>
-
-          <div className="flex items-center gap-2 border-t border-border px-6 py-4">
-            {editing && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-negative hover:bg-negative-subtle"
-                onClick={() => {
-                  onOpenChange(false);
-                  onDelete(editing);
-                }}
-              >
-                <Trash2 /> Delete
-              </Button>
-            )}
-            <div className="ml-auto flex gap-2">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {editing ? "Save" : kind === "transfer" ? "Record transfer" : `Add ${kind}`}
-              </Button>
             </div>
-          </div>
-        </form>
+
+            <div className="flex items-center gap-2 border-t border-border px-6 py-4">
+              {editing && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-negative hover:bg-negative-subtle"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onDelete(editing);
+                  }}
+                >
+                  <Trash2 /> Delete
+                </Button>
+              )}
+              <div className="ml-auto flex gap-2">
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {editing ? "Save" : kind === "transfer" ? "Record transfer" : `Add ${kind}`}
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
       </SheetContent>
     </Sheet>
   );

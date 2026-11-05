@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useCurrentHousehold } from "@/components/app-shell/household-context";
 import { Page } from "@/components/app-shell/page";
+import { NoAccountsNotice } from "@/components/overview/no-accounts";
 import { fullMoney, wholeMoney } from "@/components/charts/format";
 import { AnimatedMoney } from "@/components/money";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +102,11 @@ export function GoalsView({ householdId }: { householdId: string }) {
             <Skeleton key={i} className="h-56 rounded-2xl" />
           ))}
         </div>
+      ) : goals?.length === 0 && accounts.data?.length === 0 ? (
+        <NoAccountsNotice householdId={householdId} canEdit={canEdit}>
+          A goal tracks the balance of a savings account. Add the account you&apos;re saving in
+          first.
+        </NoAccountsNotice>
       ) : goals?.length === 0 ? (
         <Card className="grid place-items-center gap-3 px-6 py-16 text-center">
           <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-subtle text-primary">

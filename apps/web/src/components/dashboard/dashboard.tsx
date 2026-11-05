@@ -23,6 +23,7 @@ import { motion } from "motion/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, type ReactNode } from "react";
 import { useCurrentHousehold } from "@/components/app-shell/household-context";
+import { NoAccountsNotice } from "@/components/overview/no-accounts";
 import { Page } from "@/components/app-shell/page";
 import { DragHandle } from "@/components/charts/chart-card";
 import { shortMoney } from "@/components/charts/format";
@@ -133,9 +134,25 @@ export function Dashboard({ householdId }: { householdId: string }) {
   };
 
   const firstName = me?.displayName.split(" ")[0];
+  const isNew = accounts.data?.length === 0;
 
   return (
-    <Page title={`Welcome back${firstName ? `, ${firstName}` : ""}`} description={household?.name}>
+    <Page
+      title={`${isNew ? "Welcome" : "Welcome back"}${firstName ? `, ${firstName}` : ""}`}
+      description={household?.name}
+    >
+      {/* A brand-new household: say where to start, before a page of zeros (Stage 16). */}
+      {isNew && (
+        <NoAccountsNotice
+          householdId={householdId}
+          canEdit={household?.role !== "viewer"}
+          title="Start by adding an account"
+          className="mb-8"
+        >
+          Add the accounts your money lives in — checking, savings, cards. Then record a transaction
+          or import a bank statement, and this dashboard fills itself in.
+        </NoAccountsNotice>
+      )}
       <section aria-labelledby="this-month" className="space-y-4">
         <h2 id="this-month" className="text-sm font-medium text-muted-foreground">
           This month so far
