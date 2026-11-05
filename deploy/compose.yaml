@@ -9,7 +9,11 @@
 # The images are built ONCE in CI and are identical in every environment; all
 # differences live in .env.
 
-name: ledgerly
+# "ledgerly-prod", not "ledgerly": the development stack (../docker-compose.yml)
+# is called "ledgerly", and two Compose projects with the same name are ONE
+# project to Docker. Trying production on a machine running `pnpm db:up` used
+# to replace the development Postgres container (Stage 17).
+name: ledgerly-prod
 
 # Settings shared by the three application containers.
 x-app: &app
@@ -169,12 +173,15 @@ services:
     networks: [backend]
     logging: *logging
 
+# Fixed names, independent of the project name: when the project was renamed
+# (Stage 17), Docker would otherwise have looked for NEW, empty volumes, i.e.
+# an empty database. These are the names the stack has always used.
 networks:
-  backend: {}
+  backend: { name: ledgerly_backend }
 
 volumes:
-  pgdata: {}
-  caddy_data: {}
-  caddy_config: {}
-  prometheus_data: {}
-  alertmanager_data: {}
+  pgdata: { name: ledgerly_pgdata }
+  caddy_data: { name: ledgerly_caddy_data } # certificates
+  caddy_config: { name: ledgerly_caddy_config }
+  prometheus_data: { name: ledgerly_prometheus_data }
+  alertmanager_data: { name: ledgerly_alertmanager_data }

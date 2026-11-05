@@ -130,6 +130,18 @@ It pulls, migrates, replaces api → worker → web **one container at a time**
 (new one healthy before the old one stops), smoke-tests through HTTPS, and rolls
 back by itself if anything fails. `.deploy-history` lists what ran, newest last.
 
+**Once, on a server set up before Stage 17:** the Compose project was renamed
+from `ledgerly` to `ledgerly-prod` (so it can't collide with the development
+stack). Data, certificates and the network keep their names, but the old
+containers would keep ports 80/443. Before the first deploy after the rename,
+stop them (this keeps every volume):
+
+```bash
+cd ~/ledgerly/deploy && docker compose -p ledgerly --env-file .env down   # never add -v
+```
+
+Expect about a minute of downtime while `deploy.sh` starts the new containers.
+
 ## Rolling back
 
 ```bash
