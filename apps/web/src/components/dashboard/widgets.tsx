@@ -19,6 +19,7 @@ import { AnimatedMoney } from "@/components/money";
 import { accountIcons, TransactionList } from "@/components/overview/overview";
 import { BudgetBar } from "@/components/budgets/budget-bar";
 import { StatusLabel } from "@/components/budgets/status";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS_LABEL, localMonth, monthElapsed } from "@/lib/budgets";
@@ -52,7 +53,8 @@ export function CashflowWidget({
   currency: string;
   handle: ReactNode;
 }) {
-  const { data, isPending, isPlaceholderData } = useCashflow(householdId, range);
+  const query = useCashflow(householdId, range);
+  const { data, isPending, isPlaceholderData } = query;
   const months = data?.months;
   const net = months?.reduce((sum, m) => sum + m.netMinor, 0) ?? 0;
   return (
@@ -80,7 +82,9 @@ export function CashflowWidget({
         }
       }
     >
-      {isPending || !months ? (
+      {loadFailed(query) ? (
+        <ErrorState compact onRetry={query.refetch} />
+      ) : isPending || !months ? (
         <ChartSkeleton height={COLUMN_CHART_HEIGHT} />
       ) : (
         <ColumnChart
@@ -172,7 +176,9 @@ export function CategoryWidget({
         }
       }
     >
-      {report.isPending ? (
+      {loadFailed(report) ? (
+        <ErrorState compact onRetry={report.refetch} />
+      ) : report.isPending ? (
         <div className="space-y-3">
           {[0, 1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-6" />
@@ -208,7 +214,8 @@ export function NetWorthWidget({
   currency: string;
   handle: ReactNode;
 }) {
-  const { data, isPending, isPlaceholderData } = useNetWorth(householdId, range);
+  const query = useNetWorth(householdId, range);
+  const { data, isPending, isPlaceholderData } = query;
   const points = data?.points;
   const change =
     points && points.length > 1 ? points.at(-1)!.balanceMinor - points[0]!.balanceMinor : 0;
@@ -231,7 +238,9 @@ export function NetWorthWidget({
         }
       }
     >
-      {isPending || !points ? (
+      {loadFailed(query) ? (
+        <ErrorState compact onRetry={query.refetch} />
+      ) : isPending || !points ? (
         <ChartSkeleton height={LINE_CHART_HEIGHT} />
       ) : (
         <LineChart
@@ -321,7 +330,8 @@ export function AccountsWidget({
   householdId: string;
   handle: ReactNode;
 }) {
-  const { data: accounts } = useAccounts(householdId);
+  const query = useAccounts(householdId);
+  const { data: accounts } = query;
   return (
     <ChartCard
       title="Accounts"
@@ -334,25 +344,28 @@ export function AccountsWidget({
         </Button>
       }
     >
+      {loadFailed(query) && <ErrorState compact onRetry={query.refetch} />}
       <ul className="-mx-2">
-        {!accounts
-          ? [0, 1, 2, 3].map((i) => <Skeleton key={i} className="mx-2 my-3 h-9" />)
-          : accounts.map((account) => {
-              const Icon = accountIcons[account.type];
-              return (
-                <li key={account.id} className="flex items-center gap-3 rounded-xl px-2 py-2.5">
-                  <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="flex-1 truncate text-sm font-medium">{account.name}</span>
-                  <AnimatedMoney
-                    value={account.balanceMinor}
-                    currency={account.currency}
-                    className="text-sm font-medium"
-                  />
-                </li>
-              );
-            })}
+        {loadFailed(query)
+          ? null
+          : !accounts
+            ? [0, 1, 2, 3].map((i) => <Skeleton key={i} className="mx-2 my-3 h-9" />)
+            : accounts.map((account) => {
+                const Icon = accountIcons[account.type];
+                return (
+                  <li key={account.id} className="flex items-center gap-3 rounded-xl px-2 py-2.5">
+                    <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="flex-1 truncate text-sm font-medium">{account.name}</span>
+                    <AnimatedMoney
+                      value={account.balanceMinor}
+                      currency={account.currency}
+                      className="text-sm font-medium"
+                    />
+                  </li>
+                );
+              })}
       </ul>
     </ChartCard>
   );
@@ -380,13 +393,17 @@ export function RecentActivityWidget({
         </Button>
       }
     >
-      <div className="-mx-5 -mb-2">
-        <TransactionList
-          transactions={recent.data?.data}
-          categories={categories.data}
-          accounts={accounts.data}
-        />
-      </div>
+      {loadFailed(recent) ? (
+        <ErrorState compact onRetry={recent.refetch} />
+      ) : (
+        <div className="-mx-5 -mb-2">
+          <TransactionList
+            transactions={recent.data?.data}
+            categories={categories.data}
+            accounts={accounts.data}
+          />
+        </div>
+      )}
     </ChartCard>
   );
 }
@@ -440,7 +457,9 @@ export function BudgetsWidget({
         }
       }
     >
-      {isPending ? (
+      {loadFailed(query) ? (
+        <ErrorState compact onRetry={query.refetch} />
+      ) : isPending ? (
         <div className="space-y-4">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-10" />

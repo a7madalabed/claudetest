@@ -12,6 +12,7 @@ import { AnimatedMoney } from "@/components/money";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMonthYear } from "@/lib/budgets";
 import { fadeUp, spring, stagger } from "@/lib/motion";
@@ -79,7 +80,8 @@ export function projectionText(goal: GoalDto) {
 export function GoalsView({ householdId }: { householdId: string }) {
   const household = useCurrentHousehold();
   const canEdit = household?.role !== "viewer";
-  const { data: goals, isPending } = useGoals(householdId);
+  const query = useGoals(householdId);
+  const { data: goals, isPending } = query;
   const accounts = useAccounts(householdId);
   const [dialog, setDialog] = useState<DialogState>({ open: false });
   useNewParam(() => canEdit && setDialog({ open: true, goal: null }));
@@ -102,6 +104,8 @@ export function GoalsView({ householdId }: { householdId: string }) {
             <Skeleton key={i} className="h-56 rounded-2xl" />
           ))}
         </div>
+      ) : loadFailed(query) ? (
+        <ErrorState onRetry={query.refetch} />
       ) : goals?.length === 0 && accounts.data?.length === 0 ? (
         <NoAccountsNotice householdId={householdId} canEdit={canEdit}>
           A goal tracks the balance of a savings account. Add the account you&apos;re saving in

@@ -9,6 +9,7 @@ import { NoAccountsNotice } from "@/components/overview/no-accounts";
 import { useCurrentHousehold } from "@/components/app-shell/household-context";
 import { timeAgo } from "@/components/app-shell/notification-bell";
 import { Page } from "@/components/app-shell/page";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -103,6 +104,9 @@ export function ImportsView({ householdId }: { householdId: string }) {
           exit={{ opacity: 0, x: -24 }}
           transition={{ duration: 0.25, ease: ease.outQuint }}
         >
+          {step.name === "upload" && loadFailed(accounts) && (
+            <ErrorState onRetry={accounts.refetch} className="mx-auto max-w-2xl" />
+          )}
           {step.name === "upload" && accounts.data && active.length === 0 && (
             <NoAccountsNotice
               householdId={householdId}
@@ -113,43 +117,45 @@ export function ImportsView({ householdId }: { householdId: string }) {
               back here.
             </NoAccountsNotice>
           )}
-          {step.name === "upload" && !(accounts.data && active.length === 0) && (
-            <div className="mx-auto max-w-2xl space-y-5">
-              <Field label="Import into">
-                <Select
-                  value={chosen}
-                  onValueChange={setAccountId}
-                  placeholder="Choose an account…"
-                  aria-label="Import into"
-                >
-                  {active.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </Select>
-              </Field>
-              <Dropzone
-                busy={upload.isPending}
-                disabled={!canEdit || !chosen}
-                onFile={async (file) => {
-                  const text = await file.text();
-                  upload.mutate(
-                    { accountId: chosen!, file, text },
-                    {
-                      onSuccess: (result) => setStep({ name: "map", upload: result }),
-                      onError: (error) => toast.error(errorMessage(error)),
-                    },
-                  );
-                }}
-              />
-              <p className="text-caption text-muted-foreground">
-                {canEdit
-                  ? "Tip: most banks have Statements → Download → CSV. Choose a date range; overlapping ranges are fine — rows you already have are skipped."
-                  : "Viewers can't import. Ask an owner or editor of this household."}
-              </p>
-            </div>
-          )}
+          {step.name === "upload" &&
+            !loadFailed(accounts) &&
+            !(accounts.data && active.length === 0) && (
+              <div className="mx-auto max-w-2xl space-y-5">
+                <Field label="Import into">
+                  <Select
+                    value={chosen}
+                    onValueChange={setAccountId}
+                    placeholder="Choose an account…"
+                    aria-label="Import into"
+                  >
+                    {active.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                </Field>
+                <Dropzone
+                  busy={upload.isPending}
+                  disabled={!canEdit || !chosen}
+                  onFile={async (file) => {
+                    const text = await file.text();
+                    upload.mutate(
+                      { accountId: chosen!, file, text },
+                      {
+                        onSuccess: (result) => setStep({ name: "map", upload: result }),
+                        onError: (error) => toast.error(errorMessage(error)),
+                      },
+                    );
+                  }}
+                />
+                <p className="text-caption text-muted-foreground">
+                  {canEdit
+                    ? "Tip: most banks have Statements → Download → CSV. Choose a date range; overlapping ranges are fine — rows you already have are skipped."
+                    : "Viewers can't import. Ask an owner or editor of this household."}
+                </p>
+              </div>
+            )}
 
           {step.name === "map" && (
             <MappingStep
@@ -180,6 +186,13 @@ export function ImportsView({ householdId }: { householdId: string }) {
       </AnimatePresence>
 
       {/* ── History ─────────────────────────────────────────────────────── */}
+      {loadFailed(history) && (
+        <ErrorState
+          onRetry={history.refetch}
+          description="Your recent imports couldn't be loaded. Check your connection, then try again."
+          className="mx-auto mt-14 max-w-2xl"
+        />
+      )}
       {history.data && history.data.some((i) => i.status !== "uploaded") && (
         <section aria-labelledby="history" className="mt-14 space-y-3">
           <h2 id="history" className="text-sm font-medium text-muted-foreground">

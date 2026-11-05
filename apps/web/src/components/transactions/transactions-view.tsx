@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useCurrentHousehold } from "@/components/app-shell/household-context";
 import { Page } from "@/components/app-shell/page";
 import { Amount } from "@/components/money";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -262,6 +263,8 @@ export function TransactionsView({ householdId }: { householdId: string }) {
               <Skeleton key={i} className="h-12" />
             ))}
           </div>
+        ) : loadFailed(list) ? (
+          <ErrorState onRetry={list.refetch} className="mt-6" />
         ) : rows.length === 0 ? (
           <EmptyState filtered={filtered} onClear={clear} onCreate={openCreate} />
         ) : (

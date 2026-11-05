@@ -8,6 +8,7 @@ import { useCreateRule } from "@/lib/query/automation";
 import { motion } from "motion/react";
 import { fullMoney } from "@/components/charts/format";
 import { Card } from "@/components/ui/card";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { localToday } from "@/lib/budgets";
 import { CategoryIcon } from "@/lib/category-icons";
@@ -48,7 +49,9 @@ export function UpcomingBills({
   currency: string;
   canEdit: boolean;
 }) {
-  const { data, isPending } = useRecurring(householdId);
+  const query = useRecurring(householdId);
+  const { data, isPending } = query;
+  const failed = loadFailed(query);
   const createRule = useCreateRule(householdId);
 
   /** Turn a DETECTED series into a RULE: from now on, the worker records it on its own. */
@@ -90,7 +93,7 @@ export function UpcomingBills({
         <div>
           <h2 className="font-semibold">Upcoming bills</h2>
           <p className="text-sm text-muted-foreground">
-            {isPending
+            {isPending || failed
               ? " "
               : bills.length
                 ? `${fullMoney(total, currency)} due in the next 30 days`
@@ -100,7 +103,9 @@ export function UpcomingBills({
         <CalendarClock className="size-5 text-muted-foreground" aria-hidden />
       </div>
 
-      {isPending ? (
+      {failed ? (
+        <ErrorState compact onRetry={query.refetch} />
+      ) : isPending ? (
         <div className="space-y-3">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-10" />

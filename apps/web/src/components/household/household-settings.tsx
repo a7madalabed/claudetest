@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useCurrentHousehold } from "@/components/app-shell/household-context";
 import { timeAgo } from "@/components/app-shell/notification-bell";
 import { Page } from "@/components/app-shell/page";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,9 @@ export function HouseholdSettings({ householdId }: { householdId: string }) {
                 {here.size > 0 && ` · ${here.size} here now`}
               </p>
             </div>
-            {members.isPending ? (
+            {loadFailed(members) ? (
+              <ErrorState compact onRetry={members.refetch} />
+            ) : members.isPending ? (
               <div className="space-y-3 p-5">
                 {[0, 1, 2].map((i) => (
                   <Skeleton key={i} className="h-12" />

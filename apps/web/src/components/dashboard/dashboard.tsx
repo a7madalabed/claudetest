@@ -24,6 +24,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, type ReactNode } from "react";
 import { useCurrentHousehold } from "@/components/app-shell/household-context";
 import { NoAccountsNotice } from "@/components/overview/no-accounts";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Page } from "@/components/app-shell/page";
 import { DragHandle } from "@/components/charts/chart-card";
 import { shortMoney } from "@/components/charts/format";
@@ -152,6 +153,16 @@ export function Dashboard({ householdId }: { householdId: string }) {
           Add the accounts your money lives in — checking, savings, cards. Then record a transaction
           or import a bank statement, and this dashboard fills itself in.
         </NoAccountsNotice>
+      )}
+      {/* The headline figures come from three requests; if any failed, say so once. */}
+      {(loadFailed(accounts) || loadFailed(daily) || loadFailed(yearOfNetWorth)) && (
+        <ErrorState
+          className="mb-8"
+          description="Some of this month's figures couldn't be loaded. Check your connection, then try again."
+          onRetry={() =>
+            Promise.all([accounts.refetch(), daily.refetch(), yearOfNetWorth.refetch()])
+          }
+        />
       )}
       <section aria-labelledby="this-month" className="space-y-4">
         <h2 id="this-month" className="text-sm font-medium text-muted-foreground">

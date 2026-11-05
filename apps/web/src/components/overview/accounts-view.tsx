@@ -10,6 +10,7 @@ import { AnimatedMoney } from "@/components/money";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fadeUp, stagger } from "@/lib/motion";
 import { useAllAccounts } from "@/lib/query/accounts";
@@ -34,7 +35,8 @@ type DialogState = { open: false } | { open: true; account: AccountDto | null };
 export function AccountsView({ householdId }: { householdId: string }) {
   const household = useCurrentHousehold();
   const canEdit = household !== undefined && household.role !== "viewer";
-  const { data: accounts, isPending } = useAllAccounts(householdId);
+  const query = useAllAccounts(householdId);
+  const { data: accounts, isPending } = query;
   const [dialog, setDialog] = useState<DialogState>({ open: false });
   // "Add an account" links from elsewhere (and ⌘K) arrive with ?new=1.
   useNewParam(() => canEdit && setDialog({ open: true, account: null }));
@@ -61,6 +63,8 @@ export function AccountsView({ householdId }: { householdId: string }) {
             <Skeleton key={i} className="h-36 rounded-2xl" />
           ))}
         </div>
+      ) : loadFailed(query) ? (
+        <ErrorState onRetry={query.refetch} title="Couldn't load this" />
       ) : active.length === 0 && archived.length === 0 ? (
         <NoAccountsNotice householdId={householdId} canEdit={canEdit} title="No accounts yet">
           Add each place your money lives — a bank account, a card, a cash wallet, a loan. Then

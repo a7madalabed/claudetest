@@ -12,6 +12,7 @@ import { AnimatedMoney } from "@/components/money";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMonthYear, isValidMonth, localMonth, monthElapsed, shiftMonth } from "@/lib/budgets";
 import { CategoryIcon } from "@/lib/category-icons";
@@ -119,7 +120,9 @@ export function BudgetsView({ householdId }: { householdId: string }) {
         <div className="min-w-0 space-y-6">
           {/* ── Summary ───────────────────────────────────────────────── */}
           <Card className="p-5 sm:p-6">
-            {isPending || !totals ? (
+            {loadFailed(query) ? (
+              <ErrorState compact onRetry={query.refetch} />
+            ) : isPending || !totals ? (
               <Skeleton className="h-28" />
             ) : (
               <div
@@ -170,55 +173,58 @@ export function BudgetsView({ householdId }: { householdId: string }) {
           </Card>
 
           {/* ── Budget rows ───────────────────────────────────────────── */}
-          <Card className="overflow-hidden p-0">
-            {isPending ? (
-              <div className="space-y-4 p-5">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-14" />
-                ))}
-              </div>
-            ) : data?.budgets.length === 0 ? (
-              <div className="grid place-items-center gap-3 px-6 py-16 text-center">
-                <p className="font-medium">No budgets for {formatMonthYear(month)}</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Budgets start in the month you create them. Add one to set a monthly limit for a
-                  category like Groceries or Dining out.
-                </p>
-                {canEdit && (
-                  <Button onClick={() => setDialog({ open: true, budget: null })}>
-                    <Plus /> New budget
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <ul
-                className="divide-y divide-border transition-opacity"
-                style={{ opacity: isPlaceholderData ? 0.6 : 1 }}
-              >
-                <AnimatePresence initial={false}>
-                  {data?.budgets.map((budget) => (
-                    <motion.li
-                      key={budget.id}
-                      // `layout`: when a budget's status changes and the list re-sorts,
-                      // rows GLIDE to their new place instead of jumping.
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={spring.smooth}
-                    >
-                      <BudgetRow
-                        budget={budget}
-                        currency={currency}
-                        elapsed={elapsed}
-                        onEdit={canEdit ? () => setDialog({ open: true, budget }) : undefined}
-                      />
-                    </motion.li>
+          {/* Failed: the summary card above already says so. */}
+          {!loadFailed(query) && (
+            <Card className="overflow-hidden p-0">
+              {isPending ? (
+                <div className="space-y-4 p-5">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-14" />
                   ))}
-                </AnimatePresence>
-              </ul>
-            )}
-          </Card>
+                </div>
+              ) : data?.budgets.length === 0 ? (
+                <div className="grid place-items-center gap-3 px-6 py-16 text-center">
+                  <p className="font-medium">No budgets for {formatMonthYear(month)}</p>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    Budgets start in the month you create them. Add one to set a monthly limit for a
+                    category like Groceries or Dining out.
+                  </p>
+                  {canEdit && (
+                    <Button onClick={() => setDialog({ open: true, budget: null })}>
+                      <Plus /> New budget
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <ul
+                  className="divide-y divide-border transition-opacity"
+                  style={{ opacity: isPlaceholderData ? 0.6 : 1 }}
+                >
+                  <AnimatePresence initial={false}>
+                    {data?.budgets.map((budget) => (
+                      <motion.li
+                        key={budget.id}
+                        // `layout`: when a budget's status changes and the list re-sorts,
+                        // rows GLIDE to their new place instead of jumping.
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={spring.smooth}
+                      >
+                        <BudgetRow
+                          budget={budget}
+                          currency={currency}
+                          elapsed={elapsed}
+                          onEdit={canEdit ? () => setDialog({ open: true, budget }) : undefined}
+                        />
+                      </motion.li>
+                    ))}
+                  </AnimatePresence>
+                </ul>
+              )}
+            </Card>
+          )}
         </div>
 
         <aside className="min-w-0 space-y-6">
