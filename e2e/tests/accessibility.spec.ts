@@ -27,6 +27,7 @@ const APP_PAGES = [
   "/accounts",
   "/imports",
   "/household",
+  "/categories",
 ];
 
 for (const colorScheme of ["light", "dark"] as const) {

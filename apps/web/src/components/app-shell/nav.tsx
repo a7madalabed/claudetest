@@ -7,6 +7,7 @@ import {
   ChartPie,
   FileUp,
   Shield,
+  Tags,
   Users,
   Wallet,
   type LucideIcon,
@@ -52,7 +53,10 @@ export function householdNav(householdId: string, overBudget = 0): NavItem[] {
 export function settingsNav(householdId?: string): NavItem[] {
   return [
     ...(householdId
-      ? [{ href: `/app/${householdId}/household`, label: "Household", icon: Users }]
+      ? [
+          { href: `/app/${householdId}/household`, label: "Household", icon: Users },
+          { href: `/app/${householdId}/categories`, label: "Categories", icon: Tags },
+        ]
       : []),
     { href: "/app/settings/security", label: "Security", icon: Shield },
   ];
