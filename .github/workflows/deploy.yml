@@ -33,9 +33,17 @@ permissions:
 jobs:
   images:
     name: Publish images
+    # `branches: [main]` above matches the BRANCH NAME of the CI run, and a pull
+    # request from a fork's own "main" branch has that name too (Stage 16 review).
+    # So also require that CI ran for a PUSH to THIS repository: only commits
+    # that are really on our main branch can ever be built and deployed.
     if: >-
       vars.DEPLOY_ENABLED == 'true' &&
-      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.head_branch == 'main' &&
+         github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

@@ -41,8 +41,13 @@ One Linux server (2 vCPU / 4 GB is plenty to start; see Stage 12 for capacity).
 5. If the images are private, let the server pull them: create a GitHub token with
    only `read:packages`, then `docker login ghcr.io -u <you>` with it.
 6. In GitHub → Settings:
-   - **Environments → New environment `production`**. Add yourself as a required
-     reviewer if every deploy should wait for a click.
+   - **Environments → New environment `production`**. Add yourself as a **required
+     reviewer**, and under "Deployment branches" allow only `main`. Not optional:
+     it is the second lock on production, behind the workflow's own check that
+     only pushes to this repository's `main` are deployed.
+   - **Actions → General → Fork pull request workflows**: require approval for
+     **all outside collaborators**, so a stranger's pull request can't run CI
+     until you've read it.
    - **Secrets** (in the environment): `DEPLOY_HOST`, `DEPLOY_USER` (`deploy`),
      `DEPLOY_SSH_KEY` (a key made only for this), and `DEPLOY_KNOWN_HOSTS`, the
      output of `ssh-keyscan SERVER`, checked against the server's real fingerprint.
