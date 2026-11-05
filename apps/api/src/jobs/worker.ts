@@ -205,11 +205,14 @@ export class Worker {
     return claimed;
   }
 
-  private renewLease(jobId: string, seconds: number) {
-    return this.options.db
+  /** Extends our lease. False = the job isn't ours any more (another worker took it over). */
+  private async renewLease(jobId: string, seconds: number) {
+    const renewed = await this.options.db
       .update(jobs)
       .set({ lockedUntil: sql`now() + make_interval(secs => ${seconds})` })
-      .where(and(eq(jobs.id, jobId), eq(jobs.lockedBy, this.id)));
+      .where(and(eq(jobs.id, jobId), eq(jobs.lockedBy, this.id)))
+      .returning({ id: jobs.id });
+    return renewed.length === 1;
   }
 
   // ─── Running one job ───────────────────────────────────────────────────────
@@ -232,15 +235,31 @@ export class Worker {
     return outcome;
   }
 
-  private async attempt(job: Job, signal: AbortSignal): Promise<JobOutcome> {
+  private async attempt(job: Job, shutdown: AbortSignal): Promise<JobOutcome> {
     const log = this.log.child({ jobId: job.id, job: job.name, attempt: job.attempts });
     const definition = this.definitions.get(job.name);
     const maxAttempts = job.maxAttempts ?? definition?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
     const lease = definition?.leaseSeconds ?? DEFAULT_LEASE_SECONDS;
 
-    // Heartbeat: renew the lease at a third of its length while the handler runs.
+    /*
+     * Heartbeat: renew the lease at a third of its length while the handler runs.
+     * If a renewal finds the job is no longer ours (our heartbeats stalled, the
+     * lease expired, another worker took it over), the handler is told to stop,
+     * through the same signal as a shutdown: two copies of one job must not run
+     * side by side (Stage 17). A failed renewal (database blip) proves nothing,
+     * so it's just retried at the next beat.
+     */
+    const lostLease = new AbortController();
+    const signal = AbortSignal.any([shutdown, lostLease.signal]);
     const heartbeat = setInterval(
-      () => void this.renewLease(job.id, lease).catch(() => {}),
+      () =>
+        void this.renewLease(job.id, lease)
+          .then((ours) => {
+            if (ours || lostLease.signal.aborted) return;
+            log.warn("Lost this job's lease to another worker; asking the handler to stop");
+            lostLease.abort();
+          })
+          .catch(() => {}),
       (lease * 1000) / 3,
     );
     const started = performance.now();

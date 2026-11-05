@@ -163,6 +163,28 @@ describe("transactions", () => {
       expect(await dbCount()).toBe(before + 1);
     });
 
+    it("concurrent duplicates with a client-chosen id all get the saved reply, never a 409 (Stage 17)", async () => {
+      // The web app sends its own id (to show the row instantly) AND a key.
+      // Two copies racing used to collide on the id first: the loser got
+      // "409 transaction_exists" instead of the winner's stored response.
+      const { Cash: cash } = await accountsByName();
+      const payload = {
+        id: "01a1a000-0000-7000-8000-00000000d0d0",
+        accountId: cash!.id,
+        amountMinor: -1234,
+        occurredOn: "2026-06-15",
+        description: "Double tap",
+      };
+      const headers = { "idempotency-key": "client-id-race" };
+      const before = await dbCount();
+      const responses = await Promise.all(
+        Array.from({ length: 10 }, () => as("POST", "/transactions", payload, headers)),
+      );
+      expect(responses.map((r) => r.statusCode)).toEqual(Array(10).fill(201));
+      expect(new Set(responses.map((r) => r.json().id))).toEqual(new Set([payload.id]));
+      expect(await dbCount()).toBe(before + 1);
+    });
+
     it("concurrent duplicates still create exactly one row", async () => {
       const { Cash: cash } = await accountsByName();
       const payload = {

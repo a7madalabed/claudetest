@@ -1,3 +1,4 @@
+import { budgets, sql } from "@ledgerly/db";
 import { describe, expect, it } from "vitest";
 import { OWNER, OUTSIDER, VIEWER, request, useTestApp } from "../../test/helpers.js";
 
@@ -120,6 +121,42 @@ describe("budgets", () => {
     });
     expect(response.statusCode).toBe(409);
     expect(response.json().code).toBe("budget_exists");
+  });
+
+  it("a parent and its child can't both get budgets, even at the same moment (Stage 17)", async () => {
+    // The overlap rule used to be "check, then insert": a request arriving
+    // while another was between its check and its commit passed the check too,
+    // and the child's spending counted twice. Here the first request is held
+    // open mid-way, deterministically, as a transaction of our own.
+    const parent = (
+      await as(OWNER, "POST", "/categories", { name: "Pets", kind: "expense" })
+    ).json();
+    const child = (
+      await as(OWNER, "POST", "/categories", { name: "Vet", kind: "expense", parentId: parent.id })
+    ).json();
+    const householdId = ctx.fixtures.householdId;
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const first = ctx.db.transaction(async (tx) => {
+      // What createBudget does: lock the household's row, then check and insert.
+      await tx.execute(sql`select 1 from households where id = ${householdId} for no key update`);
+      await tx
+        .insert(budgets)
+        .values({ householdId, categoryId: parent.id, startMonth: "2026-06-01" });
+      await held; // …and hasn't committed yet
+    });
+    const second = as(OWNER, "POST", "/budgets", {
+      categoryId: child.id,
+      startMonth: "2026-06",
+      amountMinor: 10_000,
+    });
+    await new Promise((r) => setTimeout(r, 300)); // the second request reaches its check
+    release();
+    await first;
+    const response = await second;
+    expect(response.statusCode).toBe(422);
+    expect(response.json().code).toBe("budget_overlaps");
   });
 
   it("422 for income categories and for overlapping parent/child budgets", async () => {

@@ -11,6 +11,7 @@ import {
   isPgError,
   sql,
   type Database,
+  type DbExecutor,
 } from "@ledgerly/db";
 import {
   STATUS_RANK,
@@ -122,7 +123,7 @@ async function getBudgetFor(db: Database, householdId: string, budgetId: string,
  *  - a category and its own parent can't BOTH have budgets — the parent's
  *    budget already includes the child's spending, so it would count twice.
  */
-async function validateCategory(db: Database, householdId: string, categoryId: string) {
+async function validateCategory(db: DbExecutor, householdId: string, categoryId: string) {
   const [category] = await db
     .select()
     .from(categories)
@@ -155,9 +156,15 @@ async function validateCategory(db: Database, householdId: string, categoryId: s
 }
 
 export async function createBudget(db: Database, householdId: string, input: CreateBudgetInput) {
-  await validateCategory(db, householdId, input.categoryId);
   try {
     const id = await db.transaction(async (tx) => {
+      // The overlap rule spans ROWS (a parent's budget and its child's), so no
+      // unique index can enforce it. "Check, then insert" alone races: two
+      // requests both pass the check. Lock the household's row first, so budget
+      // creations in one household take turns (Stage 17). NO KEY UPDATE: rows
+      // that merely reference the household (new transactions…) aren't blocked.
+      await tx.execute(sql`select 1 from households where id = ${householdId} for no key update`);
+      await validateCategory(tx, householdId, input.categoryId);
       const [created] = await tx
         .insert(budgets)
         .values({

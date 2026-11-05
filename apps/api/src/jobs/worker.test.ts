@@ -394,6 +394,37 @@ describe("worker loop", () => {
     }
   });
 
+  it("a job whose lease was taken over is told to stop (Stage 17)", async () => {
+    // A worker whose heartbeats stalled (a long GC pause, a network blip) can
+    // find that another worker has taken its job over. Two copies of the same
+    // job must not keep running side by side.
+    const started = deferred();
+    const stopped = deferred();
+    const slow = defineJob({
+      name: "slow",
+      payload: z.object({}),
+      leaseSeconds: 3, // heartbeat every second
+      run: async (_payload, { signal }) => {
+        started.resolve();
+        await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve()));
+        stopped.resolve();
+      },
+    });
+    const id = await enqueue(db, "slow");
+    const w = new Worker({ db, pool, definitions: [slow], mailer: new MemoryMailer(), log });
+    await w.start();
+    try {
+      await within(started.promise, 2_000);
+      // Another worker takes the job over.
+      await db.update(jobs).set({ lockedBy: "another-worker" }).where(eq(jobs.id, id!));
+      await within(stopped.promise, 3_000);
+      // …and the new owner's claim is left alone.
+      expect(await jobRow(id!)).toMatchObject({ status: "running", lockedBy: "another-worker" });
+    } finally {
+      await w.stop(100);
+    }
+  });
+
   it("asks running jobs to stop via their AbortSignal", async () => {
     const started = deferred();
     let aborted = false;

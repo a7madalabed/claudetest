@@ -3,7 +3,6 @@ import {
   and,
   eq,
   idempotencyKeys,
-  isPgError,
   type Database,
   type DbTransaction,
 } from "@ledgerly/db";
@@ -22,9 +21,9 @@ const HEADER = "idempotency-key";
  *   new key              → run it AND store the response in the SAME database
  *                          transaction, so "created" and "remembered" can't diverge
  *
- * If two identical requests race, both try to insert the key; the primary key
- * makes one fail, its whole transaction (including the created row) rolls back,
- * and it replays the winner's response instead.
+ * If two identical requests race, the loser's transaction fails (on the key, or
+ * on the row it creates), rolls back entirely, and it replays the winner's
+ * response instead.
  */
 export async function idempotent<T>(
   db: Database,
@@ -89,10 +88,13 @@ export async function idempotent<T>(
     reply.status(status);
     return result;
   } catch (error) {
-    if (isPgError(error, "uniqueViolation", "idempotency_keys_pkey")) {
-      const winner = await replay();
-      if (winner !== undefined) return winner;
-    }
+    // Lost a race with an identical request? The winner's response is stored
+    // by now: replay it. The collision isn't always on the key itself: with a
+    // client-chosen id, the loser hits the TRANSACTION's primary key first
+    // ("409 transaction_exists", Stage 17). Whatever the error, if a request
+    // with this key and this body succeeded, its answer is the right answer.
+    const winner = await replay();
+    if (winner !== undefined) return winner;
     throw error;
   }
 }
