@@ -41,6 +41,14 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {
     app.log.info({ signal, drainMs: env.SHUTDOWN_DRAIN_MS }, "Shutting down gracefully");
     app.draining = true;
+    /*
+     * Don't close idle kept-alive connections from this side: a client may be
+     * sending a request on one at that very instant, and it fails (tried in
+     * Stage 17: one 500 in ~7,000 requests). Clients drop idle connections
+     * THEMSELVES a little before the server's keep-alive timeout (5 s), so by
+     * the end of a 5 s drain they have. And a request that still arrives while closing is
+     * answered, not refused (return503OnClosing, app.ts).
+     */
     if (env.SHUTDOWN_DRAIN_MS > 0) {
       await new Promise((resolve) => setTimeout(resolve, env.SHUTDOWN_DRAIN_MS));
     }

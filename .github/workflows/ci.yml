@@ -208,6 +208,7 @@ jobs:
           REGISTRY=ci.local
           SITE_ADDRESS=localhost
           MAIL_DRIVER=log
+          RATE_LIMIT_ENABLED=false
           POSTGRES_PASSWORD=$(openssl rand -hex 16)
           ENCRYPTION_KEY=$(openssl rand -base64 32)
           EOF
@@ -215,11 +216,25 @@ jobs:
       - name: First deploy, onto an empty server
         run: SKIP_PULL=1 deploy/scripts/deploy.sh ${{ github.sha }}
 
-      - name: Rolling deploy of a second version
+      # Stage 17: "a deploy fails no requests" is checked on every run, not
+      # measured once. Signed-in traffic flows through Caddy during the whole
+      # rolling deploy; any 5xx or unanswered request fails the job. (Rate
+      # limiting is off in this throwaway environment: all of it comes from
+      # one address.)
+      - name: Rolling deploy of a second version, under load (0 failed requests)
         run: |
           docker tag ci.local/ledgerly-api:${{ github.sha }} ci.local/ledgerly-api:next
           docker tag ci.local/ledgerly-web:${{ github.sha }} ci.local/ledgerly-web:next
+          IMAGE_TAG=${{ github.sha }} docker compose --env-file deploy/.env -f deploy/compose.yaml cp \
+            caddy:/data/caddy/pki/authorities/local/root.crt "$RUNNER_TEMP/caddy-root.crt"
+          NODE_EXTRA_CA_CERTS="$RUNNER_TEMP/caddy-root.crt" \
+            node tools/perf/scripts/deploy-under-load.mjs https://localhost "$RUNNER_TEMP/stop" &
+          load=$!
+          sleep 5 # traffic is flowing before the deploy starts
           SKIP_PULL=1 deploy/scripts/deploy.sh next
+          sleep 3
+          touch "$RUNNER_TEMP/stop"
+          wait "$load"
 
       - name: Back up, then prove the backup restores
         run: |

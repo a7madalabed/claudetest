@@ -95,6 +95,11 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
     // Only trust that header when we KNOW a proxy sets it — otherwise anyone could
     // forge it to dodge IP-based rate limits.
     trustProxy: env.TRUST_PROXY,
+    // While closing, still SERVE requests that arrive on open connections,
+    // instead of Fastify's default 503 (Stage 17: that 503 was the one failed
+    // request per deploy). New connections are refused anyway once closing
+    // starts, so nothing new is accepted; nothing already here is turned away.
+    return503OnClosing: false,
   }).withTypeProvider<ZodTypeProvider>();
 
   // Only JSON bodies. Removing Fastify's default text/plain parser closes a CSRF
