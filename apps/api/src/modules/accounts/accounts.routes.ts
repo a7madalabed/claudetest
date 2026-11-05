@@ -50,7 +50,7 @@ export const accountRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const account = await service.createAccount(app.db, request.params.householdId, request.body);
+      const account = await service.createAccount(app.db, request.household!, request.body);
       // 201 Created + Location header: the REST convention for "here's your new resource".
       return reply
         .status(201)

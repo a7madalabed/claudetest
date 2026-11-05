@@ -1,6 +1,5 @@
 import {
   and,
-  categories,
   eq,
   householdMembers,
   households,
@@ -31,6 +30,7 @@ import {
   verifyTotp,
 } from "../../auth/totp.js";
 import { AppError, conflict, unprocessable } from "../../lib/errors.js";
+import { createStarterCategories } from "../categories/starter.js";
 
 /** ONE message for "no such email" and "wrong password" — never reveal which. */
 const invalidCredentials = () =>
@@ -50,22 +50,6 @@ const invalidCode = () =>
   );
 
 // ─── Sign-up ─────────────────────────────────────────────────────────────────
-
-const STARTER_CATEGORIES: Array<{
-  name: string;
-  kind: "income" | "expense";
-  icon: string;
-  children?: string[];
-}> = [
-  { name: "Salary", kind: "income", icon: "briefcase" },
-  { name: "Other income", kind: "income", icon: "sparkles" },
-  { name: "Housing", kind: "expense", icon: "home", children: ["Rent", "Utilities"] },
-  { name: "Food", kind: "expense", icon: "utensils", children: ["Groceries", "Dining out"] },
-  { name: "Transport", kind: "expense", icon: "car" },
-  { name: "Shopping", kind: "expense", icon: "shopping-bag" },
-  { name: "Health", kind: "expense", icon: "heart-pulse" },
-  { name: "Entertainment", kind: "expense", icon: "film" },
-];
 
 /**
  * Creates the user, their first household and starter categories — in ONE
@@ -103,29 +87,7 @@ export async function signup(tx: DbTransaction, input: SignupInput) {
     .returning({ id: households.id });
   await tx.insert(householdMembers).values({ householdId: household!.id, userId, role: "owner" });
 
-  for (const [index, spec] of STARTER_CATEGORIES.entries()) {
-    const [parent] = await tx
-      .insert(categories)
-      .values({
-        householdId: household!.id,
-        name: spec.name,
-        kind: spec.kind,
-        icon: spec.icon,
-        sortOrder: index,
-      })
-      .returning({ id: categories.id });
-    if (spec.children?.length) {
-      await tx.insert(categories).values(
-        spec.children.map((name, childIndex) => ({
-          householdId: household!.id,
-          parentId: parent!.id,
-          name,
-          kind: spec.kind,
-          sortOrder: childIndex,
-        })),
-      );
-    }
-  }
+  await createStarterCategories(tx, household!.id);
   return userId;
 }
 

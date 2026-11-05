@@ -162,9 +162,9 @@
             ]
           },
           "currency": {
+            "description": "Defaults to the household's base currency, and must match it: totals add amounts across accounts.",
             "type": "string",
             "pattern": "^[A-Z]{3}$",
-            "description": "ISO 4217 currency code",
             "example": "USD"
           },
           "openingBalanceMinor": {
@@ -178,8 +178,7 @@
         },
         "required": [
           "name",
-          "type",
-          "currency"
+          "type"
         ]
       },
       "UpdateAccountInput": {
@@ -2832,9 +2831,9 @@
             ]
           },
           "currency": {
+            "description": "Defaults to the household's base currency, and must match it: totals add amounts across accounts.",
             "type": "string",
             "pattern": "^[A-Z]{3}$",
-            "description": "ISO 4217 currency code",
             "example": "USD"
           },
           "openingBalanceMinor": {
@@ -2849,7 +2848,6 @@
         "required": [
           "name",
           "type",
-          "currency",
           "openingBalanceMinor"
         ],
         "additionalProperties": false

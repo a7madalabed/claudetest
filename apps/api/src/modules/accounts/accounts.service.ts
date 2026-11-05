@@ -11,7 +11,7 @@ import {
   type DbExecutor,
 } from "@ledgerly/db";
 import type { AccountDto, CreateAccountInput, UpdateAccountInput } from "@ledgerly/shared";
-import { conflict, notFound } from "../../lib/errors.js";
+import { conflict, notFound, unprocessable } from "../../lib/errors.js";
 
 /*
  * Services hold the business rules. They know nothing about HTTP (no request,
@@ -80,15 +80,30 @@ export async function getAccount(db: DbExecutor, householdId: string, accountId:
 const nameTaken = (name: string) =>
   conflict("account_name_taken", `An account named "${name}" already exists in this household.`);
 
+/**
+ * A household keeps its books in ONE currency, its base currency (Stage 16).
+ * Every total (spending, cash flow, budgets) adds amounts across accounts, and
+ * ¥10,000 is not $100.00: until amounts are converted, a second currency would
+ * make every total wrong without anyone noticing.
+ */
 export async function createAccount(
   db: DbExecutor,
-  householdId: string,
+  household: { id: string; baseCurrency: string },
   input: CreateAccountInput,
 ) {
+  const householdId = household.id;
+  const currency = input.currency ?? household.baseCurrency;
+  if (currency !== household.baseCurrency) {
+    throw unprocessable(
+      "currency_not_supported",
+      "currency",
+      `This household keeps its books in ${household.baseCurrency}. Accounts in other currencies aren't supported yet.`,
+    );
+  }
   try {
     const [created] = await db
       .insert(accounts)
-      .values({ householdId, ...input })
+      .values({ householdId, ...input, currency })
       .returning();
     return getAccount(db, householdId, created!.id);
   } catch (error) {

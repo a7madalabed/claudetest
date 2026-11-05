@@ -15,6 +15,7 @@ import type {
   UpdateHouseholdInput,
 } from "@ledgerly/shared";
 import { conflict, forbidden, notFound } from "../../lib/errors.js";
+import { createStarterCategories } from "../categories/starter.js";
 
 export async function listMembers(db: DbExecutor, householdId: string, me: string) {
   const rows = await db
@@ -114,7 +115,7 @@ export async function updateHousehold(
   await db.update(households).set(input).where(eq(households.id, householdId));
 }
 
-/** A new, empty household — its creator is the owner. (Starter categories come in a later exercise.) */
+/** A new household, ready to use: its creator is the owner, with the starter categories. */
 export async function createHousehold(db: Database, userId: string, input: CreateHouseholdInput) {
   return db.transaction(async (tx) => {
     const [household] = await tx
@@ -126,6 +127,7 @@ export async function createHousehold(db: Database, userId: string, input: Creat
       })
       .returning({ id: households.id });
     await tx.insert(householdMembers).values({ householdId: household!.id, userId, role: "owner" });
+    await createStarterCategories(tx, household!.id);
     return household!.id;
   });
 }

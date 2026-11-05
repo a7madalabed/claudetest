@@ -82,5 +82,17 @@ describe("members", () => {
       .json()
       .households.map((h: { name: string; role: string }) => `${h.name}:${h.role}`);
     expect(names).toContain("Side Business:owner");
+
+    // Ready to use: the same starter categories a sign-up gets (Stage 16).
+    const household = created
+      .json()
+      .households.find((h: { name: string }) => h.name === "Side Business");
+    const categories = await request(ctx.app, OUTSIDER, {
+      method: "GET",
+      url: `/v1/households/${household.id}/categories`,
+    });
+    expect(categories.json().data.map((c: { name: string }) => c.name)).toEqual(
+      expect.arrayContaining(["Salary", "Groceries", "Rent", "Transport"]),
+    );
   });
 });

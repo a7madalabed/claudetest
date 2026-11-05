@@ -45,6 +45,18 @@ describe("accounts", () => {
     expect(response.json().code).toBe("account_name_taken");
   });
 
+  it("uses the household's currency, and refuses any other (Stage 16)", async () => {
+    // Totals add up amounts across accounts: ¥10,000 is not $100.00. Until
+    // amounts are converted, a household keeps its books in ONE currency.
+    const defaulted = await as("POST", "", { name: "Wallet", type: "cash" });
+    expect(defaulted.statusCode).toBe(201);
+    expect(defaulted.json().currency).toBe("USD");
+
+    const other = await as("POST", "", { name: "Yen", type: "cash", currency: "JPY" });
+    expect(other.statusCode).toBe(422);
+    expect(other.json().code).toBe("currency_not_supported");
+  });
+
   it("archiving hides an account unless includeArchived=true", async () => {
     const [cash] = (await as("GET")).json().data.filter((a: { name: string }) => a.name === "Cash");
     const patched = await as("PATCH", `/${cash.id}`, { archived: true });

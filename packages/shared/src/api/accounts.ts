@@ -35,7 +35,10 @@ export const CreateAccountSchema = z
   .object({
     name: nameSchema(100),
     type: AccountTypeSchema,
-    currency: CurrencyCodeSchema,
+    currency: CurrencyCodeSchema.optional().meta({
+      description:
+        "Defaults to the household's base currency, and must match it: totals add amounts across accounts.",
+    }),
     openingBalanceMinor: MinorUnitsSchema.default(0),
   })
   .meta({ id: "CreateAccount" });
