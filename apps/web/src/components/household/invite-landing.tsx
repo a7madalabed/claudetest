@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api/client";
-import { errorMessage } from "@/lib/api/errors";
+import { errorMessage, isApiError } from "@/lib/api/errors";
 import { spring } from "@/lib/motion";
 import {
   useAcceptInvitation,
@@ -19,6 +19,7 @@ import {
   useInvitationPreview,
 } from "@/lib/query/household";
 import { authFlags } from "@/lib/query/client";
+import { useResendVerification } from "@/lib/query/hooks";
 
 /** Sign out, then sign in as the invited address — and come back here. */
 async function switchAccount(loginUrl: string) {
@@ -107,7 +108,9 @@ export function InviteLanding({ token }: { token: string }) {
           </p>
         </div>
 
-        {rightPerson ? (
+        {rightPerson && user && !user.emailVerified ? (
+          <ConfirmEmailFirst email={user.email} />
+        ) : rightPerson ? (
           <div className="grid gap-2">
             <Button
               size="lg"
@@ -118,7 +121,13 @@ export function InviteLanding({ token }: { token: string }) {
                     toast.success(`Welcome to ${invitation.householdName}`);
                     router.push(`/app/${householdId}`);
                   },
-                  onError: (error) => toast.error(errorMessage(error)),
+                  onError: (error) => {
+                    // A brand-new account must confirm its email first (Stage 15):
+                    // the banner explains, so don't shout with a toast too.
+                    if (!(isApiError(error) && error.code === "email_not_verified")) {
+                      toast.error(errorMessage(error));
+                    }
+                  },
                 })
               }
             >
@@ -177,5 +186,31 @@ function Message({
         <Link href="/app">Go to Ledgerly</Link>
       </Button>
     </Card>
+  );
+}
+
+/**
+ * Stage 15: joining needs a confirmed address. Opening the link in the email
+ * confirms it; when they come back here, the page re-checks and shows "Join".
+ */
+function ConfirmEmailFirst({ email }: { email: string }) {
+  const resend = useResendVerification();
+  return (
+    <div role="status" className="space-y-3 rounded-xl bg-warning-subtle p-4 text-sm text-warning">
+      <p>
+        One more step: confirm your email address. We sent a link to <strong>{email}</strong> — open
+        it, then come back to this page to join.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={resend.isPending || resend.isSuccess}
+        onClick={() =>
+          resend.mutate(undefined, { onError: (error) => toast.error(errorMessage(error)) })
+        }
+      >
+        {resend.isSuccess ? "Sent — check your inbox" : "Send the link again"}
+      </Button>
+    </div>
   );
 }

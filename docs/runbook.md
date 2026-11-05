@@ -10,10 +10,12 @@ All commands run **on the server**, in `~/ledgerly/deploy/`, unless they say oth
 alias dc='IMAGE_TAG=$(tail -n1 .deploy-history) docker compose --env-file .env'
 ```
 
-Contents: [Setting up a server](#setting-up-a-server) · [Deploying](#deploying) ·
+Contents: [Setting up a server](#setting-up-a-server) · [Email](#email) ·
+[Protecting main](#protecting-main) · [Deploying](#deploying) ·
 [Rolling back](#rolling-back) · [Failed deploy](#failed-deploy) ·
 [Migrations](#migrations) · [Backups](#backups) · [Restoring](#restoring) ·
-[Monitoring](#monitoring) · [Secrets](#secrets) · [Alerts](#alerts)
+[Monitoring](#monitoring) · [Secrets](#secrets) · [Account support](#account-support) ·
+[Alerts](#alerts)
 
 ---
 
@@ -51,6 +53,39 @@ One Linux server (2 vCPU / 4 GB is plenty to start; see Stage 12 for capacity).
    40 3 * * 1  cd ~/ledgerly/deploy && IMAGE_TAG=$(tail -n1 .deploy-history) scripts/restore-drill.sh >> backups/drill.log 2>&1
    ```
 8. Start monitoring: `dc --profile monitoring up -d prometheus`.
+
+## Email
+
+Password resets, email confirmation, invitations and alerts are real emails, so
+production needs a provider (Postmark, Amazon SES, Resend, Mailgun… all offer SMTP).
+
+1. Create an account with the provider and **verify your sending domain**. That
+   means adding the SPF and DKIM DNS records they give you, plus a DMARC record.
+   Without them, Gmail and Outlook will treat Ledgerly's emails as spam.
+2. In `.env`: `MAIL_DRIVER=smtp`, `SMTP_URL=smtp://USER:PASSWORD@HOST:587`,
+   `MAIL_FROM=Ledgerly <no-reply@your-domain>`. Then deploy.
+3. Test it: use "Forgot password?" with your own address. The worker logs one
+   `account.email` job; the provider's dashboard shows the message.
+
+The app refuses to start in production without a `MAIL_DRIVER`. `MAIL_DRIVER=log`
+(no email at all) is allowed, but only when written down on purpose.
+
+## Protecting main
+
+GitHub can't stop a broken change from reaching `main` until you tell it to.
+In the repository: **Settings → Branches → Add branch ruleset** (or "Add rule")
+for `main`:
+
+- **Require a pull request before merging.** Every change gets a reviewable diff.
+- **Require status checks to pass**, and pick the four CI jobs: _Format · Lint ·
+  Typecheck · Test · Build_, _End-to-end (Playwright)_, _Images · Deploy · Backup
+  drill · Alerts_, _Dependency audit · Secret scan_. Also tick _require branches to
+  be up to date_.
+- **Block force pushes** and deletions.
+
+From then on, work happens on a branch, CI runs on the pull request, and
+**Deploy** only ever sees commits that passed everything. (Stages 11–13 were each
+pushed straight to `main`, and CI was red for three stages before anyone looked.)
 
 ## Deploying
 
@@ -177,6 +212,26 @@ receiver (email, Slack, PagerDuty).
   guard it.
 - **DEPLOY_SSH_KEY**: generate a new key, add it to the server's
   `authorized_keys`, update the GitHub secret, remove the old key.
+
+## Account support
+
+**"I'm locked out after too many wrong passwords."** Locks last at most 15
+minutes, and a password reset lifts them immediately. To lift one by hand:
+
+```bash
+dc exec postgres psql -U ledgerly -c "delete from auth_throttles where key like '%sam@example.com'"
+```
+
+**"The reset / confirmation email never arrived."** Check the worker log for the
+`account.email` job, then the provider's dashboard (bounced? marked as spam?).
+Links expire: reset after 1 hour, confirmation after 48 hours. Ask the user to
+request a new one; only the newest link works.
+
+**"Delete my account."** Users can do it themselves under Settings → Security.
+It's refused while they're the only owner of a household others use (they must
+hand it over first). Deleting is immediate and permanent. Backups still hold
+the data until they age out (14 days locally, plus your off-site retention):
+say so in your privacy policy.
 
 ---
 

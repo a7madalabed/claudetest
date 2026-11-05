@@ -92,6 +92,13 @@
       "when": 1793623415652,
       "tag": "0012_household_version_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793862155485,
+      "tag": "0013_account_security",
+      "breakpoints": true
     }
   ]
 }

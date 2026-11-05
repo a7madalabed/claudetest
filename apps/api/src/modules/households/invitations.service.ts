@@ -214,6 +214,21 @@ export async function acceptInvitation(
         `This invitation is for ${row.email}. Sign in with that email to accept it.`,
       );
     }
+    // The invitation is for an ADDRESS, so the account must have proven it owns
+    // that address (Stage 15). Otherwise anyone could sign up as someone else's
+    // email and use a forwarded invitation link to join their household.
+    const [account] = await tx
+      .select({ emailVerifiedAt: users.emailVerifiedAt })
+      .from(users)
+      .where(eq(users.id, user.id));
+    if (!account?.emailVerifiedAt) {
+      throw new AppError(
+        403,
+        "email_not_verified",
+        "Email not confirmed",
+        `Confirm your email address first: we sent a link to ${user.email}.`,
+      );
+    }
     await tx
       .insert(householdMembers)
       .values({ householdId: row.householdId, userId: user.id, role: row.role })

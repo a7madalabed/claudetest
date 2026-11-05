@@ -38,6 +38,10 @@ x-api-env: &api-env
   API_DOCS: ${API_DOCS:-false}
   # Only ever "false" for a load test against a staging copy.
   RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+  # How email is sent (password resets, verification, invitations, alerts).
+  MAIL_DRIVER: ${MAIL_DRIVER:?set MAIL_DRIVER (smtp, or log to deliberately send none)}
+  SMTP_URL: ${SMTP_URL:-}
+  MAIL_FROM: ${MAIL_FROM:-Ledgerly <no-reply@example.com>}
 
 services:
   postgres:

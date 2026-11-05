@@ -59,11 +59,12 @@ describe("rate limiting", () => {
         payload: { email: OWNER, password },
       });
 
-    for (let i = 0; i < 10; i++) expect((await attempt("wrong-password")).statusCode).toBe(401);
+    for (let i = 0; i < 5; i++) expect((await attempt("wrong-password")).statusCode).toBe(401);
 
     const blocked = await attempt(DEMO_PASSWORD); // even the RIGHT password is refused now
     expect(blocked.statusCode).toBe(429);
-    expect(blocked.json()).toMatchObject({ code: "rate_limited", status: 429 });
+    // Database-backed since Stage 15 (modules/auth/throttle.ts).
+    expect(blocked.json()).toMatchObject({ code: "too_many_attempts", status: 429 });
     expect(Number(blocked.headers["retry-after"])).toBeGreaterThan(0);
 
     // A different account from the same IP isn't affected.

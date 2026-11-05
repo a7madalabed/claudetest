@@ -30,6 +30,8 @@ export const MeSchema = z
     email: z.email(),
     displayName: z.string(),
     mfaEnabled: z.boolean(),
+    /** The user proved they own `email` by clicking a link sent there (Stage 15). */
+    emailVerified: z.boolean(),
     households: z.array(HouseholdSchema),
   })
   .meta({ id: "Me" });

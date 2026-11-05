@@ -73,6 +73,20 @@ const EnvSchema = z
     SHUTDOWN_DRAIN_MS: z.coerce.number().int().min(0).max(60_000).default(0),
     /** Port for Prometheus metrics (/metrics), kept off the public port. 0 disables it. */
     METRICS_PORT: z.coerce.number().int().min(0).max(65_535).default(0),
+    /**
+     * How email leaves the worker (Stage 15). "log" prints it (development);
+     * "smtp" sends it through SMTP_URL — every email provider (Postmark, SES,
+     * Resend, Mailgun…) offers SMTP. Required in production: see the check below.
+     */
+    MAIL_DRIVER: z.enum(["log", "smtp"]).optional(),
+    /** smtp://user:password@host:587 (STARTTLS) or smtps://…:465 (TLS). */
+    // Compose passes an unset optional variable as "" — treat that as "not set".
+    SMTP_URL: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.url({ protocol: /^smtps?$/ }).optional(),
+    ),
+    /** Sender shown to users. Its domain must be set up with your provider (SPF/DKIM). */
+    MAIL_FROM: z.string().min(3).default("Ledgerly <no-reply@ledgerly.localhost>"),
     CORS_ORIGINS: z
       .string()
       .default("http://localhost:3000")
@@ -83,8 +97,24 @@ const EnvSchema = z
           .filter(Boolean),
       ),
   })
+  /*
+   * Production must CHOOSE how email is sent. A silent default of "log" is how
+   * a real deployment ends up never sending a password-reset email (found in
+   * the project review, Stage 15). MAIL_DRIVER=log in production is allowed,
+   * but only when someone writes it down on purpose.
+   */
+  .refine((env) => !(env.NODE_ENV === "production" && !env.MAIL_DRIVER), {
+    message:
+      "Set MAIL_DRIVER=smtp (with SMTP_URL) — or MAIL_DRIVER=log to deliberately send no email",
+    path: ["MAIL_DRIVER"],
+  })
+  .refine((env) => env.MAIL_DRIVER !== "smtp" || env.SMTP_URL, {
+    message: "MAIL_DRIVER=smtp needs SMTP_URL",
+    path: ["SMTP_URL"],
+  })
   .transform((env) => ({
     ...env,
+    MAIL_DRIVER: env.MAIL_DRIVER ?? ("log" as const),
     COOKIE_SECURE: env.COOKIE_SECURE ?? env.NODE_ENV === "production",
   }))
   // Cross-field rule: production must never send session cookies over plain HTTP.

@@ -29,7 +29,9 @@ export async function serverApi<S extends z.ZodType>(path: string, schema: S): P
     cache: "no-store",
     signal: AbortSignal.timeout(5_000),
   });
-  if (response.status === 401) redirect("/login");
+  // The session is gone (expired, revoked, password reset): clear the stale
+  // cookie on the way to /login, or the proxy would bounce us straight back.
+  if (response.status === 401) redirect("/session-expired");
 
   const data: unknown = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, (data ?? {}) as object);

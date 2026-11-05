@@ -22,6 +22,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 12  | [Performance & scalability](./docs/stage-12-performance-and-scalability.md)   | ✅ Done |
 | 13  | [Testing strategy](./docs/stage-13-testing-strategy.md)                       | ✅ Done |
 | 14  | [Deployment & operations](./docs/stage-14-deployment-and-operations.md)       | ✅ Done |
+| 15  | [Launch readiness](./docs/stage-15-launch-readiness.md)                       | ✅ Done |
 
 ## Repository layout
 
@@ -67,7 +68,7 @@ pnpm db:up && pnpm db:migrate && pnpm db:seed
 pnpm dev
 ```
 
-`pnpm dev` starts three processes: the web app, the API, and the **background worker** that runs imports, scheduled tasks and notifications. Development "emails" are printed in the worker's log instead of being sent.
+`pnpm dev` starts three processes: the web app, the API, and the **background worker** that runs imports, scheduled tasks and notifications. Emails (sign-up confirmation, password reset, notifications) really are sent, over SMTP, to **Mailpit**, a local inbox that `pnpm db:up` starts next to Postgres: open http://localhost:8025 to read them. To print emails in the worker's log instead, set `MAIL_DRIVER=log` in `apps/api/.env`.
 
 Then open http://localhost:3000 and sign in with **demo@ledgerly.app** / **correct-horse-ledger** (or create your own account). The demo household is shared with **jamie@ledgerly.app** (same password): sign in as Jamie in a second browser to see changes appear live. The living style guide is at http://localhost:3000/design. The API runs on http://localhost:4000 (try http://localhost:4000/health and http://localhost:4000/health/ready).
 

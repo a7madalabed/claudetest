@@ -15,11 +15,19 @@ export const emailJob = (appUrl: string) =>
     maxAttempts: 8, // providers have bad minutes; keep trying for a while
     run: async ({ notificationId }, { db, mailer }) => {
       const [row] = await db
-        .select({ notification: notifications, email: users.email, name: users.displayName })
+        .select({
+          notification: notifications,
+          email: users.email,
+          name: users.displayName,
+          verified: users.emailVerifiedAt,
+        })
         .from(notifications)
         .innerJoin(users, eq(users.id, notifications.userId))
         .where(eq(notifications.id, notificationId));
       if (!row) throw new PermanentJobError("Notification no longer exists");
+      // Only to addresses the user has proven are theirs (Stage 15): someone who
+      // signs up with a stranger's address can't make us send that stranger alerts.
+      if (!row.verified) return;
       const { notification: n } = row;
       await mailer.send(
         {

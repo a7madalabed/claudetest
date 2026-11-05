@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 /** How many of the stages below are finished. */
-const COMPLETED_STAGES = 14;
+const COMPLETED_STAGES = 15;
 
 const stages = [
   "Foundations & architecture",
@@ -28,6 +28,7 @@ const stages = [
   "Performance & scalability",
   "Testing strategy",
   "Deployment & operations",
+  "Launch readiness",
 ];
 
 export default function HomePage() {
@@ -45,8 +46,8 @@ export default function HomePage() {
         </p>
         <h1 className="text-display">Ledgerly</h1>
         <p className="max-w-prose text-lg text-pretty text-muted-foreground">
-          Your money, beautifully organised. Built in fourteen stages, from the first design token
-          to a tested, observable, self-healing production deployment.
+          Your money, beautifully organised. Built in fifteen stages, from the first design token to
+          a tested, observable production deployment that&rsquo;s ready for real people.
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
           <Button asChild size="lg">

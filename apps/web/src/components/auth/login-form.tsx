@@ -22,7 +22,14 @@ export function LoginForm({ next, email }: { next?: string; email?: string }) {
   const login = useLogin();
   const form = useForm<z.input<typeof LoginSchema>, unknown, LoginInput>({
     resolver: zodResolver(LoginSchema),
-    mode: "onTouched",
+    /*
+     * Validate on SUBMIT, then live as they fix things. Validating when a field
+     * loses focus put "Enter a valid email address" above the links below the
+     * form the moment you clicked one: the link jumped 11 px mid-click, and the
+     * click missed (found by the Stage 15 browser tests).
+     */
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     // ?email= comes from an invitation link: the account it was sent to.
     defaultValues: { email: email ?? "", password: "" },
   });
@@ -56,6 +63,12 @@ export function LoginForm({ next, email }: { next?: string; email?: string }) {
       <Field label="Password" error={errors.password?.message}>
         <PasswordInput autoComplete="current-password" {...form.register("password")} />
       </Field>
+      <Link
+        href="/forgot-password"
+        className="-mt-2 justify-self-end text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        Forgot password?
+      </Link>
       <Button type="submit" size="lg" loading={login.isPending} className="mt-2 w-full">
         Sign in
       </Button>

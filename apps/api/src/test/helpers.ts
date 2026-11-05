@@ -82,15 +82,16 @@ export function useTestApp(
 
   beforeEach(async () => {
     await database.db.execute(
-      sql`truncate table jobs, job_schedules, notifications, imports, recurring_rules, budget_amounts, budgets, goals, dashboard_layouts, recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users cascade`,
+      sql`truncate table auth_throttles, account_tokens, jobs, job_schedules, notifications, imports, recurring_rules, budget_amounts, budgets, goals, dashboard_layouts, recovery_codes, sessions, idempotency_keys, transactions, categories, accounts, household_members, households, users cascade`,
     );
     const demo = await seedDemoData(database.db, { today: "2026-06-15", seed: 1 });
 
     const [viewer, outsider] = await database.db
       .insert(users)
       .values([
-        { email: VIEWER, displayName: "Vee Viewer" },
-        { email: OUTSIDER, displayName: "Otto Outsider" },
+        // Established accounts: their email addresses are confirmed.
+        { email: VIEWER, displayName: "Vee Viewer", emailVerifiedAt: new Date() },
+        { email: OUTSIDER, displayName: "Otto Outsider", emailVerifiedAt: new Date() },
       ])
       .returning();
     const [other] = await database.db

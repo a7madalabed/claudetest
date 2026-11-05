@@ -6,32 +6,49 @@ import {
   LoginSchema,
   MeSchema,
   MfaCodeSchema,
+  PasswordResetRequestSchema,
+  PasswordResetSchema,
   RecoveryCodesSchema,
   SessionSchema,
   SignupSchema,
   TotpSetupSchema,
+  VerifyEmailSchema,
 } from "@ledgerly/shared";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { enqueue } from "../../jobs/queue.js";
+import { conflict } from "../../lib/errors.js";
 import { problems } from "../../lib/responses.js";
 import { getMe } from "../households/households.service.js";
+import * as account from "./account.service.js";
 import * as auth from "./auth.service.js";
 import * as sessions from "./sessions.service.js";
+import {
+  clearAccountLoginAttempts,
+  clearAttempts,
+  consumeAttempt as consumeAttemptIn,
+  limits,
+  type Limit,
+} from "./throttle.js";
 
 /**
  * /v1/auth — sign-up, sign-in, two-factor, sessions and password management.
  *
- * Every endpoint that accepts a secret (password or code) is RATE LIMITED, keyed
- * on what an attacker would vary: IP + email for sign-in (credential stuffing),
- * the session for 2FA codes (a 6-digit code has only 1,000,000 possibilities).
+ * Every endpoint that accepts a secret (password or code) is ATTEMPT-LIMITED,
+ * with counters in the database (./throttle.ts, Stage 15): they survive deploys,
+ * are shared by every API instance, and can't be raced with parallel guesses.
  */
-export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays: number }> = async (
-  app,
-  opts,
-) => {
+export const authRoutes: FastifyPluginAsyncZod<{
+  encryptionKey: Buffer;
+  ttlDays: number;
+  /** Per-address volume limits (RATE_LIMIT_ENABLED). Per-account limits always apply. */
+  ipLimits: boolean;
+}> = async (app, opts) => {
   const tags = ["Auth"];
   const key = opts.encryptionKey;
+  const consumeAttempt = (db: typeof app.db, limits: Limit[]) =>
+    consumeAttemptIn(db, limits, { ipLimits: opts.ipLimits });
 
   const meta = (request: FastifyRequest) => ({
     ipAddress: request.ip,
@@ -57,7 +74,6 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
   app.post(
     "/signup",
     {
-      config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
       schema: {
         tags,
         summary: "Create an account (and a first household), then sign in",
@@ -67,7 +83,13 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
       },
     },
     async (request, reply) => {
-      const userId = await app.db.transaction((tx) => auth.signup(tx, request.body));
+      await consumeAttempt(app.db, limits.signup(request.ip));
+      const userId = await app.db.transaction(async (tx) => {
+        const id = await auth.signup(tx, request.body);
+        // Same transaction: the email goes out only if the account really exists.
+        await account.sendVerificationEmail(tx, key, { id, email: request.body.email });
+        return id;
+      });
       await startSession(request, reply, userId);
       request.log.info({ userId, event: "auth.signup" }, "User signed up");
       return reply.status(201).send(await getMe(app.db, userId));
@@ -77,16 +99,6 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
   app.post(
     "/login",
     {
-      config: {
-        rateLimit: {
-          max: 10,
-          timeWindow: "15 minutes",
-          // Runs after the body is parsed, so we can key on the email too.
-          hook: "preHandler",
-          keyGenerator: (request) =>
-            `login:${request.ip}:${String((request.body as { email?: string } | undefined)?.email ?? "").toLowerCase()}`,
-        },
-      },
       schema: {
         tags,
         summary: "Sign in with email and password",
@@ -96,12 +108,17 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
       },
     },
     async (request, reply) => {
+      const attempt = limits.login(request.ip, request.body.email);
+      await consumeAttempt(app.db, attempt);
       try {
         const { userId, mfaEnabled } = await auth.verifyCredentials(
           app.db,
           request.body.email,
           request.body.password,
         );
+        // The password was right: forget this account's failed attempts. (The
+        // per-IP counter stays: it measures volume from one address.)
+        await clearAttempts(app.db, [attempt[0]!.key, attempt[1]!.key]);
         if (mfaEnabled) {
           await startSession(request, reply, userId, true);
           return {
@@ -126,11 +143,6 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
       onRequest: app.authenticate,
       config: {
         allowMfaPending: true,
-        rateLimit: {
-          max: 5,
-          timeWindow: "5 minutes",
-          keyGenerator: (request) => `mfa:${request.cookies[app.sessionCookieName] ?? request.ip}`,
-        },
       },
       schema: {
         tags,
@@ -144,11 +156,18 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
       if (!pending.mfaPending) {
         return { status: "authenticated" as const, user: await getMe(app.db, request.user!.id) };
       }
+      // Per ACCOUNT, not per pending session: a new sign-in must not buy new guesses.
+      const attempt = limits.secondFactor(request.user!.id);
+      await consumeAttempt(app.db, attempt);
       const method = await auth.verifySecondFactor(
         app.db,
         key,
         request.user!.id,
         request.body.code,
+      );
+      await clearAttempts(
+        app.db,
+        attempt.map((l) => l.key),
       );
       // Privilege changed → issue a brand-new session token and drop the pending one.
       await sessions.deleteSession(app.db, pending.id);
@@ -232,7 +251,6 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
     "/password",
     {
       onRequest: app.authenticate,
-      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         tags,
         summary: "Change password (signs out all other devices)",
@@ -241,14 +259,25 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
       },
     },
     async (request, reply) => {
+      const attempt = limits.reauth(request.user!.id);
+      await consumeAttempt(app.db, attempt);
       await auth.changePassword(
         app.db,
         request.user!,
         request.body.currentPassword,
         request.body.newPassword,
       );
+      await clearAttempts(
+        app.db,
+        attempt.map((l) => l.key),
+      );
       // If the old password leaked, the attacker's sessions die with it.
       await sessions.revokeOtherSessions(app.db, request.user!.id, request.session!.id);
+      // And the owner hears about it, in case it wasn't them.
+      await enqueue(app.db, "account.email", {
+        userId: request.user!.id,
+        kind: "password_changed",
+      });
       request.log.info(
         { userId: request.user!.id, event: "auth.password_changed" },
         "Password changed",
@@ -274,7 +303,6 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
     "/mfa/totp/enable",
     {
       onRequest: app.authenticate,
-      config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
       schema: {
         tags,
         summary: "Confirm 2FA with a code; returns one-time recovery codes",
@@ -283,11 +311,17 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
       },
     },
     async (request) => {
+      const attempt = limits.secondFactor(request.user!.id);
+      await consumeAttempt(app.db, attempt);
       const recoveryCodes = await auth.confirmTotpSetup(
         app.db,
         key,
         request.user!.id,
         request.body.code,
+      );
+      await clearAttempts(
+        app.db,
+        attempt.map((l) => l.key),
       );
       request.log.info(
         { userId: request.user!.id, event: "auth.mfa_enabled" },
@@ -301,7 +335,6 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
     "/mfa/totp/disable",
     {
       onRequest: app.authenticate,
-      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         tags,
         summary: "Turn off 2FA (requires password and a current code)",
@@ -310,6 +343,8 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
       },
     },
     async (request, reply) => {
+      const attempt = limits.reauth(request.user!.id);
+      await consumeAttempt(app.db, attempt);
       await auth.disableTotp(
         app.db,
         key,
@@ -317,11 +352,95 @@ export const authRoutes: FastifyPluginAsyncZod<{ encryptionKey: Buffer; ttlDays:
         request.body.password,
         request.body.code,
       );
+      await clearAttempts(
+        app.db,
+        attempt.map((l) => l.key),
+      );
       request.log.warn(
         { userId: request.user!.id, event: "auth.mfa_disabled" },
         "Two-factor disabled",
       );
       return reply.status(204).send(null);
+    },
+  );
+
+  // ─── Recovery and verification (Stage 15) ──────────────────────────────────
+
+  app.post(
+    "/password-reset/request",
+    {
+      schema: {
+        tags,
+        summary: "Email a password-reset link (same answer whether or not the account exists)",
+        security: [],
+        body: PasswordResetRequestSchema,
+        response: { 202: z.null(), ...problems(400, 429) },
+      },
+    },
+    async (request, reply) => {
+      await consumeAttempt(app.db, limits.passwordResetRequest(request.ip, request.body.email));
+      await account.requestPasswordReset(app.db, key, request.body.email);
+      request.log.info({ event: "auth.password_reset_requested" }, "Password reset requested");
+      return reply.status(202).send(null);
+    },
+  );
+
+  app.post(
+    "/password-reset",
+    {
+      schema: {
+        tags,
+        summary: "Set a new password with a link from the reset email (signs out every device)",
+        security: [],
+        body: PasswordResetSchema,
+        response: { 204: z.null(), ...problems(400, 410, 422) },
+      },
+    },
+    async (request, reply) => {
+      const user = await account.resetPassword(app.db, request.body.token, request.body.password);
+      // The real owner just proved themselves: lift any lockout on the account.
+      await clearAccountLoginAttempts(app.db, user.email);
+      request.log.info({ userId: user.id, event: "auth.password_reset" }, "Password reset");
+      return reply.status(204).send(null);
+    },
+  );
+
+  app.post(
+    "/verify-email",
+    {
+      schema: {
+        tags,
+        summary: "Confirm the email address with the link we sent",
+        security: [],
+        body: VerifyEmailSchema,
+        response: { 204: z.null(), ...problems(400, 410) },
+      },
+    },
+    async (request, reply) => {
+      const userId = await account.verifyEmail(app.db, request.body.token);
+      request.log.info({ userId, event: "auth.email_verified" }, "Email verified");
+      return reply.status(204).send(null);
+    },
+  );
+
+  app.post(
+    "/verify-email/resend",
+    {
+      onRequest: app.authenticate,
+      schema: {
+        tags,
+        summary: "Send the confirmation email again",
+        response: { 202: z.null(), ...problems(401, 409, 429) },
+      },
+    },
+    async (request, reply) => {
+      const me = await getMe(app.db, request.user!.id);
+      if (me.emailVerified) throw conflict("already_verified", "Your email is already confirmed.");
+      await consumeAttempt(app.db, limits.verificationEmail(request.user!.id));
+      await app.db.transaction((tx) =>
+        account.sendVerificationEmail(tx, key, { id: me.id, email: me.email }),
+      );
+      return reply.status(202).send(null);
     },
   );
 };

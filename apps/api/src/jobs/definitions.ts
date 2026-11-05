@@ -1,3 +1,4 @@
+import { accountEmailJob } from "../modules/auth/account-email.job.js";
 import { evaluateBudgetsJob } from "../modules/budgets/evaluate.job.js";
 import { importJob } from "../modules/imports/import.job.js";
 import { cleanupJob } from "../modules/maintenance/cleanup.job.js";
@@ -18,6 +19,7 @@ export const jobDefinitions = (config: {
     runDueRecurringJob,
     emailJob(config.appUrl),
     invitationEmailJob(config),
+    accountEmailJob(config),
     cleanupJob,
   ] as JobDefinition[];
 

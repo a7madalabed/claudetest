@@ -15,6 +15,7 @@ import type { Env } from "./config/env.js";
 import { AppError } from "./lib/errors.js";
 import { accountRoutes } from "./modules/accounts/accounts.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
+import { privacyRoutes } from "./modules/privacy/privacy.routes.js";
 import { budgetRoutes } from "./modules/budgets/budgets.routes.js";
 import { categoryRoutes } from "./modules/categories/categories.routes.js";
 import { goalRoutes } from "./modules/goals/goals.routes.js";
@@ -128,10 +129,11 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
   await app.register(sensible);
   await app.register(csrfPlugin, { allowedOrigins: env.CORS_ORIGINS });
   if (env.RATE_LIMIT_ENABLED) {
-    // A generous global limit per client (stops scrapers and runaway scripts);
-    // sensitive routes set much stricter limits of their own.
-    // NOTE: counters live in this process's memory. With several API instances,
-    // each counts separately — Stage 12 moves them to Redis so limits are shared.
+    // A generous global limit per client (stops scrapers and runaway scripts).
+    // Its counters live in this process's memory: approximate by design (they
+    // reset on deploy, and each instance counts separately), which is fine for
+    // a coarse limit. Anything protecting a SECRET (passwords, 2FA codes, reset
+    // emails) uses the database-backed counters in modules/auth/throttle.ts.
     await app.register(rateLimit, {
       global: true,
       max: 300,
@@ -180,8 +182,10 @@ export async function buildApp(env: Env, deps: AppDependencies): Promise<Fastify
         prefix: "/auth",
         encryptionKey: env.ENCRYPTION_KEY,
         ttlDays: env.SESSION_TTL_DAYS,
+        ipLimits: env.RATE_LIMIT_ENABLED,
       });
       await v1.register(meRoutes);
+      await v1.register(privacyRoutes, { encryptionKey: env.ENCRYPTION_KEY });
       await v1.register(invitationRoutes);
       await v1.register(notificationRoutes);
       await v1.register(

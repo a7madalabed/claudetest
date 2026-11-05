@@ -3,7 +3,7 @@ import { pino } from "pino";
 import { loadEnv } from "./config/env.js";
 import { jobDefinitions, schedules } from "./jobs/definitions.js";
 import { Worker } from "./jobs/worker.js";
-import { LogMailer } from "./lib/mailer.js";
+import { createMailer } from "./lib/mailer.js";
 import { createRegistry, gaugeOnScrape, jobMetrics, startMetricsServer } from "./lib/metrics.js";
 
 /*
@@ -80,7 +80,7 @@ const worker = new Worker({
   pool: database.pool,
   definitions: jobDefinitions({ appUrl: env.APP_URL, encryptionKey: env.ENCRYPTION_KEY }),
   schedules,
-  mailer: new LogMailer(log),
+  mailer: createMailer(env, log),
   log,
   concurrency: env.WORKER_CONCURRENCY,
   onJobFinished,

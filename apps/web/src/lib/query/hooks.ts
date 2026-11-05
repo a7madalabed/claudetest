@@ -141,6 +141,59 @@ export function useLogout() {
   });
 }
 
+// ─── Recovery and verification (Stage 15) ────────────────────────────────────
+
+export function usePasswordResetRequest() {
+  return useMutation({
+    ...inline,
+    mutationFn: (input: { email: string }) =>
+      api("/v1/auth/password-reset/request", { method: "POST", body: input }),
+  });
+}
+
+export function usePasswordReset() {
+  return useMutation({
+    ...inline,
+    mutationFn: (input: { token: string; password: string }) =>
+      api("/v1/auth/password-reset", { method: "POST", body: input }),
+  });
+}
+
+export function useVerifyEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    ...inline,
+    mutationFn: (token: string) =>
+      api("/v1/auth/verify-email", { method: "POST", body: { token } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.me }),
+  });
+}
+
+export function useResendVerification() {
+  return useMutation({
+    ...inline,
+    mutationFn: () => api("/v1/auth/verify-email/resend", { method: "POST" }),
+  });
+}
+
+export function useDeleteAccount() {
+  return useMutation({
+    ...inline,
+    // The moment the account is gone, every other request in flight gets a 401.
+    // Like signing out, those are expected: don't let them redirect to a plain
+    // sign-in page before ours lands on "your account has been deleted" (a race
+    // the Stage 15 browser test caught).
+    onMutate: () => {
+      authFlags.signingOut = true;
+    },
+    mutationFn: (input: { password: string; code?: string }) =>
+      api("/v1/me", { method: "DELETE", body: input }),
+    onError: () => {
+      authFlags.signingOut = false; // wrong password: still signed in
+    },
+  });
+}
+
 // ─── Security settings ───────────────────────────────────────────────────────
 
 export function useChangePassword() {

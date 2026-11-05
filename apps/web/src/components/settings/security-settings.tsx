@@ -19,11 +19,12 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Page } from "@/components/app-shell/page";
+import { DeleteAccountCard, YourDataCard } from "@/components/settings/privacy-settings";
+import { Section } from "@/components/settings/section";
 import { FormAlert } from "@/components/auth/form-alert";
 import { PasswordStrength } from "@/components/auth/password-strength";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +54,7 @@ export function SecuritySettings() {
   return (
     <Page
       title="Security"
-      description="Keep your account safe: two-factor authentication, your password, and signed-in devices."
+      description="Keep your account safe: two-factor authentication, your password, signed-in devices — and your data."
     >
       <motion.div
         variants={stagger(0.08)}
@@ -70,33 +71,14 @@ export function SecuritySettings() {
         <motion.div variants={fadeUp}>
           <SessionsCard />
         </motion.div>
+        <motion.div variants={fadeUp}>
+          <YourDataCard />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <DeleteAccountCard />
+        </motion.div>
       </motion.div>
     </Page>
-  );
-}
-
-function Section({
-  title,
-  description,
-  badge,
-  children,
-}: {
-  title: string;
-  description: string;
-  badge?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-3 p-6 pb-0">
-        <div className="space-y-1">
-          <h2 className="text-title">{title}</h2>
-          <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
-        </div>
-        {badge}
-      </div>
-      <div className="p-6">{children}</div>
-    </Card>
   );
 }
 
@@ -178,6 +160,8 @@ function TwoFactorCard() {
                 <OtpInput
                   value={code}
                   onChange={setCode}
+                  // Without it the input had no accessible name (found writing the 2FA journey, Stage 15).
+                  label="6-digit code from your authenticator app"
                   invalid={isApiError(enable.error)}
                   onComplete={(value) =>
                     enable.mutate(value, {
@@ -243,7 +227,10 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
         <strong>Save these recovery codes now.</strong> Each one signs you in once if you lose your
         phone. They won&apos;t be shown again.
       </div>
-      <ul className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-4 font-mono text-sm sm:grid-cols-5">
+      <ul
+        aria-label="Recovery codes"
+        className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-4 font-mono text-sm sm:grid-cols-5"
+      >
         {codes.map((c) => (
           <li key={c}>{c}</li>
         ))}

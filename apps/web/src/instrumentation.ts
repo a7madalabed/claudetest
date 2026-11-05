@@ -1,16 +1,12 @@
 /**
  * Runs once when the Next.js server starts (Next's instrumentation hook).
  *
- * A CAP on graceful shutdown (Stage 14). On SIGTERM, Next's own handler stops
- * accepting connections and waits for open requests to finish — correct, but
- * a live-update stream (Server-Sent Events) never "finishes", so a deploy
- * would wait for Docker's hard kill. This gives in-flight requests time to
- * complete, then exits; cut streams reconnect by themselves (Stage 11).
+ * Next also compiles this file for its Edge runtime, which has no `process.once`,
+ * so the Node-only code lives in ./shutdown and is loaded on the Node runtime only.
  */
-export function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const capMs = Number(process.env.SHUTDOWN_TIMEOUT_MS ?? 10_000);
-  process.once("SIGTERM", () => {
-    setTimeout(() => process.exit(0), capMs).unref();
-  });
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { installShutdownCap } = await import("./shutdown");
+    installShutdownCap();
+  }
 }

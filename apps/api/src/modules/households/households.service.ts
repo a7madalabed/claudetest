@@ -10,6 +10,7 @@ export async function getMe(db: DbExecutor, userId: string): Promise<MeDto> {
       email: users.email,
       displayName: users.displayName,
       totpEnabledAt: users.totpEnabledAt,
+      emailVerifiedAt: users.emailVerifiedAt,
     })
     .from(users)
     .where(eq(users.id, userId));
@@ -34,6 +35,7 @@ export async function getMe(db: DbExecutor, userId: string): Promise<MeDto> {
     email: user.email,
     displayName: user.displayName,
     mfaEnabled: user.totpEnabledAt !== null,
+    emailVerified: user.emailVerifiedAt !== null,
     households: memberships.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() })),
   };
 }

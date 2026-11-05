@@ -1,5 +1,7 @@
 "use client";
 
+// First: configure Zod before any schema validates anything.
+import "@/lib/zod-config";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { MotionConfig } from "motion/react";
@@ -13,7 +15,7 @@ import { createQueryClient } from "@/lib/query/client";
  * App-wide client providers, kept in one small file so the root layout can stay
  * a Server Component.
  */
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, nonce }: { children: ReactNode; nonce?: string }) {
   // useState (not a module-level constant) so each browser tab — and each server
   // render — gets its own cache. A shared module-level client on the server
   // could leak one user's data into another user's page.
@@ -22,7 +24,14 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Adds class="dark" to <html> before first paint, so there's no theme flash. */}
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      {/* nonce: its inline script must be allowed by the Content Security Policy. */}
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+        nonce={nonce}
+      >
         {/* Every Motion animation automatically respects the OS "reduce motion" setting. */}
         <MotionConfig reducedMotion="user">
           <TooltipProvider delayDuration={300}>

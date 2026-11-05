@@ -107,6 +107,8 @@ export const users = pgTable(
     totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
     /** Last accepted 30-second TOTP time step: stops the same code being replayed. */
     totpLastUsedStep: bigint("totp_last_used_step", { mode: "number" }),
+    /** When the user proved they own `email` by clicking a link we sent there (Stage 15). */
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -152,6 +154,55 @@ export const sessions = pgTable(
 );
 
 /** One-time backup codes for when the authenticator app is lost. Stored hashed. */
+/**
+ * Counters for attempts at anything secret-protected: sign-in, 2FA codes,
+ * password-reset requests (Stage 15). Kept in the DATABASE, not in a server's
+ * memory, so limits survive deploys and are shared by every API instance.
+ *
+ * One row per key (e.g. "login:account:sam@example.com"), counting attempts in
+ * a fixed window that starts at the first attempt.
+ */
+export const authThrottles = pgTable(
+  "auth_throttles",
+  {
+    key: text("key").primaryKey(),
+    attempts: integer("attempts").notNull(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("auth_throttles_window_started_at_idx").on(t.windowStartedAt)],
+);
+
+/**
+ * Single-use links sent by email: "reset your password", "confirm your email"
+ * (Stage 15). Like session tokens, only a HASH is stored: someone who reads the
+ * database (or a backup) can't use a pending link.
+ */
+export const accountTokenPurpose = pgEnum("account_token_purpose", [
+  "password_reset",
+  "email_verification",
+]);
+
+export const accountTokens = pgTable(
+  "account_tokens",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: accountTokenPurpose("purpose").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    /** The address the link was sent to: verifying proves THIS address, even if the account's email changes later. */
+    email: text("email").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("account_tokens_token_hash_key").on(t.tokenHash),
+    index("account_tokens_user_id_idx").on(t.userId),
+  ],
+);
+
 export const recoveryCodes = pgTable(
   "recovery_codes",
   {

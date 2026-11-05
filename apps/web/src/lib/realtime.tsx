@@ -13,6 +13,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import type { MemberDto, MeDto } from "@ledgerly/shared";
+import { authFlags } from "./query/client";
 import { useMe } from "./query/hooks";
 
 export type RealtimeStatus = "connecting" | "live" | "reconnecting";
@@ -135,6 +136,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     source.addEventListener("unauthorized", () => {
       source.close();
+      // Signing out (or deleting the account) on purpose: that flow navigates.
+      if (authFlags.signingOut) return;
       // The session was revoked elsewhere ("sign out everywhere"). A full page load
       // on purpose: it discards every piece of in-memory state from that session.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination

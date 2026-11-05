@@ -17,7 +17,7 @@ interface RequestOptions<S extends z.ZodType | undefined> {
 
 /**
  * The browser-side API client. Requests go to `/api/...` on our own origin and
- * are proxied to the API (see next.config.ts), so the session cookie is sent
+ * are proxied to the API (see src/proxy.ts), so the session cookie is sent
  * automatically and never touched by JavaScript.
  */
 export async function api<S extends z.ZodType | undefined = undefined>(

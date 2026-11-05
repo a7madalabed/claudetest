@@ -72,6 +72,30 @@ export const ChangePasswordSchema = z
   .object({ currentPassword: z.string().min(1).max(256), newPassword: PasswordSchema })
   .meta({ id: "ChangePassword" });
 
+// ─── Account recovery and verification (Stage 15) ─────────────────────────────
+
+/** A secret from an emailed link: 32 random bytes, base64url. */
+const LinkTokenSchema = z.string().min(20).max(200);
+
+export const PasswordResetRequestSchema = z
+  .object({ email: EmailSchema })
+  .meta({ id: "PasswordResetRequest" });
+
+export const PasswordResetSchema = z
+  .object({ token: LinkTokenSchema, password: PasswordSchema })
+  .meta({ id: "PasswordReset" });
+
+export const VerifyEmailSchema = z.object({ token: LinkTokenSchema }).meta({ id: "VerifyEmail" });
+
+/** Deleting your account: re-enter your password (and a 2FA code if it's on). */
+export const DeleteAccountSchema = z
+  .object({
+    password: z.string().min(1).max(256),
+    code: z.string().trim().min(6).max(20).optional(),
+  })
+  .meta({ id: "DeleteAccount" });
+export type DeleteAccountInput = z.infer<typeof DeleteAccountSchema>;
+
 export const SessionSchema = z
   .object({
     id: IdSchema,

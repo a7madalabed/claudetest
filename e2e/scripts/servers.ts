@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { runMigrations } from "@ledgerly/db";
 import pg from "pg";
-import { E2E_API_PORT, E2E_DATABASE_URL, E2E_WEB_URL } from "../src/env.js";
+import { E2E_API_PORT, E2E_DATABASE_URL, E2E_SMTP_URL, E2E_WEB_URL } from "../src/env.js";
 
 /*
  * Starts the back end for the end-to-end suite, exactly as production runs it:
@@ -50,6 +50,10 @@ const env = {
   RATE_LIMIT_ENABLED: "false",
   LOG_LEVEL: process.env.LOG_LEVEL ?? "warn",
   WORKER_CONCURRENCY: "4",
+  // Real email, delivered to Mailpit, where the tests read it (src/mail.ts).
+  MAIL_DRIVER: "smtp",
+  SMTP_URL: E2E_SMTP_URL,
+  MAIL_FROM: "Ledgerly <no-reply@ledgerly.test>",
 };
 
 const dist = (file: string) =>

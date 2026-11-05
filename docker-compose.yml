@@ -32,5 +32,14 @@ services:
       timeout: 3s
       retries: 15
 
+  # Stage 15: a local inbox. Everything the app sends lands here and goes no
+  # further: SMTP on localhost:1025, a web inbox at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.33.0
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   postgres-data:

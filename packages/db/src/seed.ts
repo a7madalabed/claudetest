@@ -120,6 +120,7 @@ export async function seedDemoData(
         email: "demo@ledgerly.app",
         displayName: "Alex Demo",
         passwordHash: DEMO_PASSWORD_HASH,
+        emailVerifiedAt: new Date(), // demo accounts start out confirmed
       })
       .returning();
     const [household] = await tx
@@ -136,6 +137,7 @@ export async function seedDemoData(
         email: "jamie@ledgerly.app",
         displayName: "Jamie Rivera",
         passwordHash: DEMO_PASSWORD_HASH,
+        emailVerifiedAt: new Date(), // demo accounts start out confirmed
       })
       .returning();
     await tx.insert(householdMembers).values([

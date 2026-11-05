@@ -27,6 +27,7 @@ export const openApiPlugin = fp(
         tags: [
           { name: "Auth", description: "Sign-up, sign-in, two-factor authentication and sessions" },
           { name: "Households", description: "The current user and their households" },
+          { name: "Privacy", description: "Export your data, or delete your account" },
           { name: "Members", description: "Who belongs to a household, and their roles" },
           { name: "Invitations", description: "Inviting people by email, and accepting" },
           { name: "Accounts", description: "Bank accounts, cards and cash" },

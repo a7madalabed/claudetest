@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
-import { PASSWORD, expect, test } from "../src/fixtures.js";
+import { PASSWORD, expect, test, watchCsp } from "../src/fixtures.js";
+import { linkIn, waitForEmail } from "../src/mail.js";
 
 const row = (page: Page, description: string) =>
   page.getByRole("list", { name: "Transactions" }).getByRole("button", { name: description });
@@ -32,6 +33,7 @@ test.describe("sharing a household", () => {
 
     // ── The partner, in a separate browser, follows the link and signs up ────
     const partnerContext = await browser.newContext();
+    const partnerCsp = await watchCsp(partnerContext);
     const partner = await partnerContext.newPage();
     await partner.goto(link);
     await expect(
@@ -43,6 +45,14 @@ test.describe("sharing a household", () => {
     await partner.getByLabel("Your name").fill("Jamie Rivera");
     await partner.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await partner.getByRole("button", { name: "Create account" }).click();
+
+    // A new account must confirm its address before joining (Stage 15): the
+    // invitation was for that ADDRESS. The real email arrives in Mailpit.
+    await expect(partner.getByText("One more step: confirm your email address")).toBeVisible();
+    const confirmation = await waitForEmail(partnerEmail, /Confirm your email/);
+    await partner.goto(linkIn(confirmation, "/verify-email"));
+    await expect(partner.getByRole("heading", { name: "Email confirmed" })).toBeVisible();
+    await partner.goto(link);
     await partner.getByRole("button", { name: "Join household" }).click();
     await partner.waitForURL(new RegExp(user.home));
 
@@ -65,6 +75,7 @@ test.describe("sharing a household", () => {
     await expect(row(page, "Dinner for two")).toBeVisible();
     await expect(page.getByText("Jamie added a transaction")).toBeVisible();
 
+    expect(partnerCsp, "Content Security Policy violations (partner)").toEqual([]);
     await partnerContext.close();
     // The partner left: presence notices.
     await expect(page.getByText("Jamie Rivera is here")).not.toBeAttached({ timeout: 15_000 });

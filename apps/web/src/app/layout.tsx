@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
+import { headers } from "next/headers";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -16,7 +17,10 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // The per-response nonce from proxy.ts (Content Security Policy). Reading
+  // headers also makes every page render per request, which nonces require.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // suppressHydrationWarning: next-themes sets the theme class on <html> before
     // React loads, which would otherwise trigger a harmless mismatch warning.
@@ -26,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
     >
       <body className="min-h-dvh font-sans">
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
       </body>
     </html>
   );

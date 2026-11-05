@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { test as base, expect, type APIRequestContext, type Page } from "@playwright/test";
+import {
+  test as base,
+  expect,
+  type APIRequestContext,
+  type BrowserContext,
+  type Page,
+} from "@playwright/test";
 import type { AccountDto, CategoryDto, MeDto } from "@ledgerly/shared";
 
 /*
@@ -64,7 +70,30 @@ export async function signIn(page: Page, email: string, password = PASSWORD) {
 /** Today in UTC (the suite's browser and server time zone), "YYYY-MM-DD". */
 export const today = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * Collects every Content Security Policy violation in a browser context's pages.
+ *
+ * It listens for the browser's own `securitypolicyviolation` event. Watching the
+ * console is NOT enough: Chromium reported a blocked eval() as an event but
+ * logged nothing, and a console-only guard missed it (Stage 15).
+ */
+export async function watchCsp(context: BrowserContext): Promise<string[]> {
+  const violations: string[] = [];
+  await context.exposeBinding("__reportCspViolation", (_source, text: string) => {
+    violations.push(text);
+  });
+  // Plain JavaScript in a string: it runs in every page, before the page's own code.
+  await context.addInitScript(`
+    document.addEventListener("securitypolicyviolation", (e) =>
+      window.__reportCspViolation(e.violatedDirective + " blocked " + (e.blockedURI || "inline") +
+        " (" + e.sourceFile + ":" + e.lineNumber + ")"));
+  `);
+  return violations;
+}
+
 interface Fixtures {
+  /** Runs for every test (auto): fails it if the browser blocked anything under the CSP. */
+  cspGuard: void;
   /** A fresh user, signed in in `page`'s browser context. */
   user: TestUser;
   /** A checking account in the user's household. */
@@ -78,6 +107,19 @@ interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
+  /*
+   * A too-strict Content Security Policy breaks the app SILENTLY: a blocked
+   * script just doesn't run. So every test, in every page it opens (including
+   * second browsers), fails if Chromium reports a CSP violation (Stage 15).
+   */
+  cspGuard: [
+    async ({ context }, use) => {
+      const violations = await watchCsp(context);
+      await use();
+      expect(violations, "Content Security Policy violations").toEqual([]);
+    },
+    { auto: true },
+  ],
   // page.request shares the page's cookies: signing up here signs the browser in.
   user: async ({ page }, use) => use(await signUp(page.request)),
   userApi: async ({ page, user }, use) => {

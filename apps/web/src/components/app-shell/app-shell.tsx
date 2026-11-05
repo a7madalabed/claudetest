@@ -14,6 +14,7 @@ import { LiveStatus } from "./live-status";
 import { NavList, householdNav, settingsNav } from "./nav";
 import { NotificationBell } from "./notification-bell";
 import { UserMenu } from "./user-menu";
+import { VerifyEmailBanner } from "./verify-email-banner";
 
 /**
  * Loaded on demand (Stage 12): the command palette and its search library were
@@ -151,6 +152,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main id="main" className="min-w-0">
+        <VerifyEmailBanner />
         {children}
       </main>
 

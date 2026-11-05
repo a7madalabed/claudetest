@@ -130,8 +130,10 @@ describe("env", () => {
   });
 
   it("refuses insecure cookies in production", () => {
-    expect(() => testEnv({ NODE_ENV: "production", COOKIE_SECURE: "false" })).toThrow();
-    expect(testEnv({ NODE_ENV: "production" }).COOKIE_SECURE).toBe(true);
+    // MAIL_DRIVER: production also requires a deliberate mail setting (Stage 15).
+    const production = { NODE_ENV: "production", MAIL_DRIVER: "log" };
+    expect(() => testEnv({ ...production, COOKIE_SECURE: "false" })).toThrow();
+    expect(testEnv(production).COOKIE_SECURE).toBe(true);
   });
 
   it("requires a 32-byte encryption key", () => {

@@ -1,10 +1,13 @@
 import {
+  accountTokens,
   and,
+  authThrottles,
   idempotencyKeys,
   inArray,
   jobs,
   lt,
   notifications,
+  or,
   sessions,
   sql,
 } from "@ledgerly/db";
@@ -47,6 +50,22 @@ export const cleanupJob = defineJob({
           .delete(sessions)
           .where(lt(sessions.expiresAt, sql`now()`))
           .returning({ id: sessions.id })
+      ).length,
+      // Attempt counters only matter inside their window (the longest is an hour).
+      attemptCounters: (
+        await db
+          .delete(authThrottles)
+          .where(lt(authThrottles.windowStartedAt, ago("1 day")))
+          .returning({ key: authThrottles.key })
+      ).length,
+      // Expired or used reset/verification links: nothing left to protect.
+      accountTokens: (
+        await db
+          .delete(accountTokens)
+          .where(
+            or(lt(accountTokens.expiresAt, ago("7 days")), lt(accountTokens.usedAt, ago("7 days"))),
+          )
+          .returning({ id: accountTokens.id })
       ).length,
       readNotifications: (
         await db

@@ -21,7 +21,14 @@ export function SignupForm({ next, email }: { next?: string; email?: string }) {
   // The SAME schema the API validates with: identical rules, instant feedback.
   const form = useForm<z.input<typeof SignupSchema>, unknown, SignupInput>({
     resolver: zodResolver(SignupSchema),
-    mode: "onTouched",
+    /*
+     * Validate on SUBMIT, then live as they fix things. Validating when a field
+     * loses focus put "Enter a valid email address" above the links below the
+     * form the moment you clicked one: the link jumped 11 px mid-click, and the
+     * click missed (found by the Stage 15 browser tests).
+     */
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: { displayName: "", email: email ?? "", password: "" },
   });
   const { errors } = form.formState;

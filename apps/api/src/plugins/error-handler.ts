@@ -55,6 +55,7 @@ export const errorHandlerPlugin = fp(
       }
 
       if (error instanceof AppError) {
+        if (error.headers) reply.headers(error.headers);
         return send(request, reply, {
           status: error.status,
           code: error.code,
