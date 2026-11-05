@@ -64,8 +64,11 @@ docker run --rm --network "$run" -e DATABASE_URL="$db_url" "$API_IMAGE" node dis
   sed 's/^/    /'
 
 log "5/5 starting the API on the restored data"
+# MAIL_DRIVER=log: production requires a mail setting, and a drill must never
+# email anyone (the restored data holds real users' addresses).
 docker run -d --name "$run-api" --network "$run" -e DATABASE_URL="$db_url" \
-  -e ENCRYPTION_KEY="$(head -c 32 /dev/urandom | base64)" -e LOG_LEVEL=warn "$API_IMAGE" >/dev/null
+  -e ENCRYPTION_KEY="$(head -c 32 /dev/urandom | base64)" -e MAIL_DRIVER=log \
+  -e LOG_LEVEL=warn "$API_IMAGE" >/dev/null
 for _ in $(seq 1 30); do
   if docker exec "$run-api" node -e "fetch('http://127.0.0.1:4000/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" 2>/dev/null; then
     log "✅ restore drill passed: $(basename "$dump") is a working backup"

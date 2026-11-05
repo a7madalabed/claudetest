@@ -306,6 +306,8 @@ One detail in the 2FA test is worth copying. It signs in with the code for the _
 9. **An unset Compose variable arrives as an empty string**, which failed URL validation for `SMTP_URL` in the container stack. Empty strings are now treated as "not set".
 10. **A Next.js warning about Node APIs in the Edge runtime**, from the shutdown hook in `instrumentation.ts`. It now loads only on the Node runtime.
 
+11. **The restore drill couldn't boot the API** (CI, after merging). Stage 14's drill starts the API on the restored copy with only a database URL and a key. The new rule, "production must choose how email is sent", stopped it at start-up. The drill now passes `MAIL_DRIVER=log`, which is also what a drill _should_ do: the restored data holds real people's addresses. This one only showed up in CI because the local checks deployed the stack (which has a mail setting) but didn't re-run the drill after the rule was added: a reminder to run every check after a change to start-up configuration, not just the ones that seem related.
+
 Bugs 1, 2 and 5 are the kind users report as "the app is broken sometimes" and nobody can reproduce. Browser tests of complete journeys, run many times, found them in an afternoon.
 
 We also checked that the new tests can fail. Removing each rule made its test go red: session revocation on reset, the invitation's email check, the sole-owner rule, the atomic throttle, and validate-on-submit.
