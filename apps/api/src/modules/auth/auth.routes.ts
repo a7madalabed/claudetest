@@ -14,9 +14,11 @@ import {
   TotpSetupSchema,
   VerifyEmailSchema,
 } from "@ledgerly/shared";
+import { createHmac } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { safeEqual } from "../../auth/tokens.js";
 import { enqueue } from "../../jobs/queue.js";
 import { conflict } from "../../lib/errors.js";
 import { problems } from "../../lib/responses.js";
@@ -49,6 +51,35 @@ export const authRoutes: FastifyPluginAsyncZod<{
   const key = opts.encryptionKey;
   const consumeAttempt = (db: typeof app.db, limits: Limit[]) =>
     consumeAttemptIn(db, limits, { ipLimits: opts.ipLimits });
+
+  /*
+   * KNOWN DEVICES (Stage 16, OWASP's "device cookie" defence). After a full
+   * sign-in, the browser gets a long-lived HttpOnly cookie that proves "the
+   * owner of THIS email has signed in here before". It is an HMAC of the email
+   * with the server key: unforgeable, and stored nowhere. It grants nothing on
+   * its own (the password, and 2FA, are still required); it only exempts the
+   * browser from the ACCOUNT-wide attempt limit, which strangers with many
+   * addresses could otherwise trip to keep the owner out.
+   */
+  const deviceCookie = app.sessionCookieName.startsWith("__Host-")
+    ? "__Host-ledgerly_device"
+    : "ledgerly_device";
+  const deviceProof = (email: string) =>
+    createHmac("sha256", key)
+      .update(`known-device:${email.trim().toLowerCase()}`)
+      .digest("base64url");
+  const isKnownDevice = (request: FastifyRequest, email: string) => {
+    const presented = request.cookies[deviceCookie];
+    return presented !== undefined && safeEqual(presented, deviceProof(email));
+  };
+  const rememberDevice = (reply: FastifyReply, email: string) =>
+    reply.setCookie(deviceCookie, deviceProof(email), {
+      httpOnly: true,
+      secure: app.sessionCookieName.startsWith("__Host-"),
+      sameSite: "lax",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60,
+    });
 
   const meta = (request: FastifyRequest) => ({
     ipAddress: request.ip,
@@ -108,18 +139,28 @@ export const authRoutes: FastifyPluginAsyncZod<{
       },
     },
     async (request, reply) => {
-      const attempt = limits.login(request.ip, request.body.email);
-      await consumeAttempt(app.db, attempt);
+      const { email } = request.body;
+      await consumeAttempt(
+        app.db,
+        limits.login(request.ip, email, { knownDevice: isKnownDevice(request, email) }),
+      );
       try {
         const { userId, mfaEnabled } = await auth.verifyCredentials(
           app.db,
-          request.body.email,
+          email,
           request.body.password,
         );
         // The password was right: forget this account's failed attempts. (The
         // per-IP counter stays: it measures volume from one address.)
-        await clearAttempts(app.db, [attempt[0]!.key, attempt[1]!.key]);
+        await clearAttempts(
+          app.db,
+          limits
+            .login(request.ip, email)
+            .filter((limit) => !limit.perIp)
+            .map((limit) => limit.key),
+        );
         if (mfaEnabled) {
+          // Not a known device yet: that waits until the second factor is in.
           await startSession(request, reply, userId, true);
           return {
             status: "mfa_required" as const,
@@ -127,6 +168,7 @@ export const authRoutes: FastifyPluginAsyncZod<{
           };
         }
         await startSession(request, reply, userId);
+        rememberDevice(reply, email);
         request.log.info({ userId, event: "auth.login" }, "User signed in");
         return { status: "authenticated" as const, user: await getMe(app.db, userId) };
       } catch (error) {
@@ -172,6 +214,7 @@ export const authRoutes: FastifyPluginAsyncZod<{
       // Privilege changed → issue a brand-new session token and drop the pending one.
       await sessions.deleteSession(app.db, pending.id);
       await startSession(request, reply, request.user!.id);
+      rememberDevice(reply, request.user!.email);
       request.log.info(
         { userId: request.user!.id, event: "auth.mfa_verified", method },
         "Second factor verified",

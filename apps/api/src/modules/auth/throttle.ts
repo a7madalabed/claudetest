@@ -30,7 +30,14 @@ export interface Limit {
   perIp?: true;
 }
 
-/** Count one attempt against every limit; throw 429 if any is exhausted. */
+/**
+ * Count one attempt against the limits, NARROWEST FIRST; throw 429 if one is exhausted.
+ *
+ * An attempt that a narrower limit already refused is NOT counted against the
+ * broader ones (Stage 16). Otherwise one address, long blocked from guessing
+ * an account's password, could keep sending requests until the ACCOUNT-wide
+ * counter filled up — and lock the real owner out, from everywhere, forever.
+ */
 export async function consumeAttempt(
   db: DbExecutor,
   limits: Limit[],
@@ -38,6 +45,7 @@ export async function consumeAttempt(
 ): Promise<void> {
   let retryAfter = 0;
   for (const limit of limits) {
+    if (retryAfter > 0) break;
     if (limit.perIp && !ipLimits) continue;
     // A window that has expired restarts at 1; otherwise count up.
     const { rows } = await db.execute<{ attempts: number; retry_after: number }>(sql`
@@ -87,17 +95,20 @@ const HOUR = 60 * MINUTE;
 const normalise = (email: string) => email.trim().toLowerCase();
 
 /*
- * The limits. Each answers a specific attack:
+ * The limits, narrowest first. Each answers a specific attack:
  *  - one IP guessing one account's password      → ip+account, tight
- *  - many IPs guessing ONE account (a botnet)    → account. Looser, because an
- *    attacker can use it to lock the real owner out for up to the window: a
- *    15-minute nuisance, never a permanent lockout
+ *  - many IPs guessing ONE account (a botnet)    → account. An attacker with
+ *    many addresses can trip it, so it never applies to a browser the owner
+ *    has signed in from before ("known device", see auth.routes.ts): the
+ *    owner's own devices can't be locked out by someone else
  *  - one IP trying a password on many accounts   → ip ("password spraying")
  */
 export const limits = {
-  login: (ip: string, email: string): Limit[] => [
+  login: (ip: string, email: string, { knownDevice = false } = {}): Limit[] => [
     { key: `login:ip-account:${ip}:${normalise(email)}`, max: 5, windowSeconds: 15 * MINUTE },
-    { key: `login:account:${normalise(email)}`, max: 20, windowSeconds: 15 * MINUTE },
+    ...(knownDevice
+      ? []
+      : [{ key: `login:account:${normalise(email)}`, max: 20, windowSeconds: 15 * MINUTE }]),
     { key: `login:ip:${ip}`, max: 100, windowSeconds: 15 * MINUTE, perIp: true },
   ],
   /** A 6-digit code has 1,000,000 values: 5 tries per 15 minutes per ACCOUNT, however many sessions. */
