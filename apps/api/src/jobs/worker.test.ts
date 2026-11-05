@@ -108,6 +108,39 @@ describe("job queue", () => {
     expect(await db.select().from(jobs)).toHaveLength(1);
   });
 
+  it("a retry that finds an identical job already queued hands the work to it (Stage 16)", async () => {
+    // While a singleton job RUNS, an identical one may be queued (the unique
+    // index only covers queued jobs). If the running one then fails and asks
+    // to be queued again, there would be two — which the database refuses.
+    // That used to escape as an unhandled error and crash the worker.
+    let twin: string | null = null;
+    const evaluate = defineJob({
+      name: "evaluate",
+      payload: z.object({}),
+      run: async () => {
+        if (twin === null) {
+          twin = await enqueue(db, "evaluate", {}, { singletonKey: "k" });
+          throw new Error("statement timeout");
+        }
+      },
+    });
+    const first = await enqueue(db, "evaluate", {}, { singletonKey: "k" });
+    const w = worker([evaluate]);
+
+    expect(await w.drain()).toEqual([
+      { name: "evaluate", status: "retry" },
+      // The queued twin is due no later than the retry would have been, and runs.
+      { name: "evaluate", status: "succeeded" },
+    ]);
+    expect(twin).not.toBeNull();
+    expect(await jobRow(first!)).toMatchObject({
+      status: "failed",
+      lockedBy: null,
+      lastError: expect.stringContaining(`handed over to job ${twin}`),
+    });
+    expect(await jobRow(twin!)).toMatchObject({ status: "succeeded" });
+  });
+
   it("enqueues atomically with the surrounding transaction", async () => {
     await db
       .transaction(async (tx) => {
@@ -298,6 +331,67 @@ describe("worker loop", () => {
     release.resolve();
     await new Promise((r) => setTimeout(r, 100));
     expect(await jobRow(id!)).toMatchObject({ status: "queued" });
+  });
+
+  it("stop() hands back a job even when an identical one is already queued (Stage 16)", async () => {
+    const started = deferred();
+    const release = deferred();
+    const stuck = defineJob({
+      name: "stuck",
+      payload: z.object({}),
+      run: async () => {
+        started.resolve();
+        await release.promise;
+      },
+    });
+    const first = await enqueue(db, "stuck", {}, { singletonKey: "k" });
+    const w = new Worker({ db, pool, definitions: [stuck], mailer: new MemoryMailer(), log });
+    await w.start();
+    await within(started.promise, 2_000);
+    // While it runs, an identical job is queued; it's due in an hour.
+    const twin = await enqueue(db, "stuck", {}, { singletonKey: "k", delayMs: 3_600_000 });
+
+    await expect(w.stop(100)).resolves.toBeUndefined();
+    release.resolve();
+
+    expect(await jobRow(first!)).toMatchObject({ status: "failed", lockedBy: null });
+    // The twin inherits the urgency: it's due now, not in an hour.
+    const inherited = await jobRow(twin!);
+    expect(inherited.status).toBe("queued");
+    expect(inherited.runAt.getTime()).toBeLessThanOrEqual(Date.now() + 1_000);
+  });
+
+  it("a database error while recording an outcome never crashes the worker (Stage 16)", async () => {
+    const done = deferred();
+    const crashes: unknown[] = [];
+    const onCrash = (error: unknown) => crashes.push(error);
+    process.on("unhandledRejection", onCrash);
+    try {
+      const job = defineJob({ name: "unrecordable", payload: z.object({}), run: async () => {} });
+      await enqueue(db, "unrecordable");
+      // Make every outcome impossible to record: a job may be claimed (→ running)
+      // but never leave "running", so both the success and the retry UPDATE fail.
+      await db.execute(
+        sql`alter table jobs add constraint review_block check (status = 'running') not valid`,
+      );
+      const w = new Worker({
+        db,
+        pool,
+        definitions: [job],
+        mailer: new MemoryMailer(),
+        log,
+        onJobFinished: () => done.resolve(),
+      });
+      await w.start();
+      await within(done.promise, 3_000);
+      await new Promise((r) => setTimeout(r, 50));
+      await db.execute(sql`alter table jobs drop constraint review_block`);
+      await w.stop(100);
+      expect(crashes).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onCrash);
+      await db.execute(sql`alter table jobs drop constraint if exists review_block`);
+    }
   });
 
   it("asks running jobs to stop via their AbortSignal", async () => {

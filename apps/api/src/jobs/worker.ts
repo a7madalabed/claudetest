@@ -1,6 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
-import { and, eq, inArray, jobSchedules, jobs, sql, type Database, type Job } from "@ledgerly/db";
+import {
+  and,
+  eq,
+  inArray,
+  isPgError,
+  jobSchedules,
+  jobs,
+  sql,
+  type Database,
+  type Job,
+} from "@ledgerly/db";
 import type pg from "pg";
 import type { Logger } from "pino";
 import type { Mailer } from "../lib/mailer.js";
@@ -53,7 +63,10 @@ export function backoffMs(attempt: number, random = Math.random) {
 export class Worker {
   readonly id = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
   private readonly definitions: Map<string, JobDefinition>;
-  private readonly inFlight = new Map<string, { promise: Promise<void>; abort: AbortController }>();
+  private readonly inFlight = new Map<
+    string,
+    { job: Job; promise: Promise<void>; abort: AbortController }
+  >();
   private running = false;
   private wake: (() => void) | null = null;
   private listener: pg.PoolClient | null = null;
@@ -88,11 +101,12 @@ export class Worker {
     for (const { abort } of this.inFlight.values()) abort.abort();
     const all = Promise.allSettled([...this.inFlight.values()].map((j) => j.promise));
     await Promise.race([all, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
-    if (this.inFlight.size > 0) {
-      await this.options.db
-        .update(jobs)
-        .set({ status: "queued", lockedUntil: null, lockedBy: null, runAt: sql`now()` })
-        .where(and(inArray(jobs.id, [...this.inFlight.keys()]), eq(jobs.lockedBy, this.id)));
+    // One at a time, each guarded: a job that can't be handed back keeps its
+    // lease and is taken over when that expires — shutdown must still finish.
+    for (const job of [...this.inFlight.values()].map((j) => j.job)) {
+      await this.requeue(job, { delaySeconds: 0 }).catch((error: unknown) =>
+        this.log.error({ err: error, jobId: job.id }, "Could not hand a job back on shutdown"),
+      );
     }
     this.listener?.release();
     this.listener = null;
@@ -151,7 +165,7 @@ export class Worker {
         this.inFlight.delete(job.id);
         this.wake?.(); // a slot just freed up
       });
-    this.inFlight.set(job.id, { promise, abort });
+    this.inFlight.set(job.id, { job, promise, abort });
   }
 
   /** Claim up to `limit` jobs: ready queued ones, plus running ones whose lease expired. */
@@ -202,7 +216,18 @@ export class Worker {
 
   private async execute(job: Job, signal: AbortSignal): Promise<JobOutcome> {
     const started = performance.now();
-    const outcome = await this.attempt(job, signal);
+    // attempt() handles the HANDLER's errors. This catches the rest: failing to
+    // RECORD an outcome (the database is down, a constraint…). The job keeps its
+    // lease, so another worker retries it when the lease expires. An error here
+    // must never escape: an unhandled rejection would kill the whole process,
+    // and every other job it was running with it (found in the Stage 16 review).
+    const outcome = await this.attempt(job, signal).catch((error: unknown) => {
+      this.log.error(
+        { err: error, jobId: job.id, job: job.name },
+        "Could not record the job's outcome; it will be retried when its lease expires",
+      );
+      return "retry" as const;
+    });
     this.options.onJobFinished?.(job.name, outcome, (performance.now() - started) / 1000);
     return outcome;
   }
@@ -243,11 +268,7 @@ export class Worker {
       const permanent = error instanceof PermanentJobError;
       if (!permanent && job.attempts < maxAttempts) {
         const delay = backoffMs(job.attempts);
-        await this.finish(job, {
-          status: "queued",
-          lastError: message,
-          runAt: sql`now() + make_interval(secs => ${delay / 1000})`,
-        });
+        await this.requeue(job, { delaySeconds: delay / 1000, lastError: message });
         log.warn({ err: error, retryInMs: delay }, "Job failed; will retry");
         return "retry";
       }
@@ -256,6 +277,45 @@ export class Worker {
       return "failed";
     } finally {
       clearInterval(heartbeat);
+    }
+  }
+
+  /**
+   * Put a job we hold back in the queue (a retry, or a hand-back on shutdown).
+   *
+   * A job with a singleton key may already have an identical twin QUEUED: the
+   * unique index only covers queued jobs, so one can be added while ours runs
+   * (e.g. a new transaction re-queues "evaluate this household's budgets").
+   * Queuing ours too would break that index. Same key = same work, so the twin
+   * takes over instead: it's made due no later than our retry would have been,
+   * and our row is closed with a note saying where the work went.
+   */
+  private async requeue(
+    job: Job,
+    { delaySeconds, lastError }: { delaySeconds: number; lastError?: string },
+  ) {
+    const runAt = sql`now() + make_interval(secs => ${delaySeconds})`;
+    // Twice at most: the twin can be claimed between our two statements, and
+    // then nothing blocks a plain re-queue any more.
+    for (let tries = 0; tries < 2; tries++) {
+      try {
+        return await this.finish(job, { status: "queued", runAt, ...(lastError && { lastError }) });
+      } catch (error) {
+        if (!job.singletonKey || !isPgError(error, "uniqueViolation", "jobs_singleton_key"))
+          throw error;
+      }
+      const [twin] = await this.options.db
+        .update(jobs)
+        .set({ runAt: sql`least(${jobs.runAt}, ${runAt})` })
+        .where(and(eq(jobs.singletonKey, job.singletonKey), eq(jobs.status, "queued")))
+        .returning({ id: jobs.id });
+      if (twin) {
+        return this.finish(job, {
+          status: "failed",
+          finishedAt: sql`now()`,
+          lastError: `${lastError ?? "Interrupted"} (handed over to job ${twin.id}, an identical job that was already queued)`,
+        });
+      }
     }
   }
 
