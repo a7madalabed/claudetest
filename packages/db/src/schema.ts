@@ -153,7 +153,6 @@ export const sessions = pgTable(
   ],
 );
 
-/** One-time backup codes for when the authenticator app is lost. Stored hashed. */
 /**
  * Counters for attempts at anything secret-protected: sign-in, 2FA codes,
  * password-reset requests (Stage 15). Kept in the DATABASE, not in a server's
@@ -203,6 +202,7 @@ export const accountTokens = pgTable(
   ],
 );
 
+/** One-time backup codes for when the authenticator app is lost. Stored hashed. */
 export const recoveryCodes = pgTable(
   "recovery_codes",
   {
