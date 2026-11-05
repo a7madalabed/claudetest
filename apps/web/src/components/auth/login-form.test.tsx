@@ -32,6 +32,22 @@ describe("safeNext (open-redirect protection)", () => {
     expect(safeNext("//evil.example")).toBe("/app");
     expect(safeNext(undefined)).toBe("/app");
   });
+
+  it("refuses tricks browsers read as another site (Stage 16)", () => {
+    // Browsers treat "\" like "/", so "/\evil" means "//evil": another host.
+    expect(safeNext("/\\evil.example/phish")).toBe("/app");
+    expect(safeNext("/\\/evil.example")).toBe("/app");
+    expect(safeNext("\\\\evil.example")).toBe("/app");
+    // Tabs and newlines are stripped by URL parsers: "/\t/evil" is "//evil".
+    expect(safeNext("/\t/evil.example")).toBe("/app");
+    expect(safeNext("/\n/evil.example")).toBe("/app");
+    expect(safeNext("javascript:alert(1)")).toBe("/app");
+    expect(safeNext("https:evil.example")).toBe("/app");
+  });
+
+  it("keeps the query string and fragment of a real page", () => {
+    expect(safeNext("/app/x/transactions?q=rent#top")).toBe("/app/x/transactions?q=rent#top");
+  });
 });
 
 describe("LoginForm", () => {
