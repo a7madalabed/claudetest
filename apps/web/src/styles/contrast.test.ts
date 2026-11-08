@@ -18,7 +18,8 @@ function readTokens(selector: ":root" | ".dark"): Record<string, string> {
   const start = css.indexOf(`\n${selector} {`);
   const block = css.slice(start, css.indexOf("\n}", start));
   const tokens: Record<string, string> = {};
-  for (const match of block.matchAll(/--([\w-]+):\s*(oklch\([^)]*\))\s*;/g)) {
+  // Colours are written as hex (the ledger palette) or oklch().
+  for (const match of block.matchAll(/--([\w-]+):\s*(oklch\([^)]*\)|#[0-9a-fA-F]{6})\s*;/g)) {
     tokens[match[1]!] = match[2]!;
   }
   return tokens;
@@ -44,6 +45,12 @@ const pairs: Array<[foreground: string, background: string, minimum: number]> = 
   ["warning", "background", AA_TEXT],
   ["warning", "warning-subtle", AA_TEXT],
   ["ring", "background", 3],
+  // Stage 18: the stamp's ink, and the line you write on in a form (WCAG 1.4.11: 3:1).
+  ["stamp", "background", AA_TEXT],
+  ["stamp", "surface", AA_TEXT],
+  ["stamp", "stamp-subtle", AA_TEXT],
+  ["input", "surface", 3],
+  ["input", "background", 3],
 ];
 
 describe.each([

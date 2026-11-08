@@ -59,7 +59,7 @@ function SidebarContents({
           <NavList items={householdNav(household.id, overBudget)} onNavigate={onNavigate} />
         )}
         <div className="grid gap-1.5">
-          <p className="px-3 text-caption font-medium tracking-wide text-muted-foreground uppercase">
+          <p className="mx-3 border-b border-border pb-1.5 font-display text-sm text-muted-foreground">
             Settings
           </p>
           <NavList items={settingsNav(household?.id)} onNavigate={onNavigate} />
@@ -113,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         Skip to content
       </a>
 
-      <aside className="sticky top-0 hidden h-dvh border-r border-border bg-muted/40 lg:block">
+      <aside className="sticky top-0 hidden h-dvh border-r border-border bg-muted lg:block">
         <SidebarContents overBudget={overBudget} onOpenPalette={() => openPalette(true)} />
       </aside>
 

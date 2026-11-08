@@ -25,7 +25,7 @@ export function Page({
 }) {
   return (
     <div className="mx-auto w-full max-w-6xl animate-page-in px-4 py-6 sm:px-8 sm:py-10">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
         <div className="space-y-1">
           <h1 className="text-headline">{title}</h1>
           {/* A <div>, not a <p>: descriptions may contain block elements (e.g. a

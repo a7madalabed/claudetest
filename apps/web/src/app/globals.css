@@ -16,91 +16,107 @@
 /* `dark:` utilities apply when an ancestor has class="dark" (set by next-themes). */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * THE HOUSEHOLD DAY-BOOK (Stage 18): the palette comes from a real ledger.
+ *
+ *   paper   pale green "analysis paper", the page everything is written on
+ *   leaf    a fresh page laid on the paper (cards, fields)
+ *   ink     blue-black fountain-pen ink: text, and the primary button
+ *   blue    money IN (written in blue ink)
+ *   red     money OUT (red ink, as accountants have always written debits)
+ *   stamp   violet rubber-stamp ink: reserved for status stamps
+ *   gilt    gold-edge ochre: heads-up messages
+ *
+ * Dark mode is the same book by lamplight: a deep green cloth cover, with the
+ * inks lightened until they read on it. Depth is not a shadow: paper doesn't
+ * float. A page sits flat, with a thin ruled edge.
+ */
 :root {
   /* Surfaces */
-  --background: oklch(0.985 0.002 270);
-  --foreground: oklch(0.2 0.012 270);
-  --surface: oklch(1 0 0);
-  --surface-foreground: oklch(0.2 0.012 270);
-  --surface-raised: oklch(1 0 0);
-  --muted: oklch(0.962 0.004 270);
-  --muted-foreground: oklch(0.49 0.014 270);
-  --border: oklch(0.915 0.005 270);
-  --input: oklch(0.88 0.006 270);
-  --overlay: oklch(0.2 0.02 270 / 40%);
+  --background: #edf1e2; /* paper */
+  --foreground: #14202a; /* ink */
+  --surface: #f8faf1; /* leaf */
+  --surface-foreground: #14202a;
+  --surface-raised: #fbfcf6; /* a leaf lifted off the page: dialogs, menus */
+  --muted: #e0e7d2; /* paper in shade */
+  --muted-foreground: #4b5b55; /* pencil */
+  --border: #b9c6ad; /* the ruled line */
+  --input: #7c8f71; /* the line you write on: dark enough to find */
+  --overlay: oklch(0.2 0.02 240 / 40%);
 
-  /* Brand */
-  --primary: oklch(0.51 0.22 277);
-  --primary-foreground: oklch(0.99 0.003 277);
-  --primary-subtle: oklch(0.955 0.025 277);
-  --ring: oklch(0.58 0.2 277);
+  /* Brand: ink */
+  --primary: #1a2b4c;
+  --primary-foreground: #f8faf1;
+  --primary-subtle: #d9e3ee;
+  --ring: #1f4e9e;
 
-  /* Meaning — money in (positive), money out (negative), heads-up (warning) */
-  --positive: oklch(0.5 0.13 155);
-  --positive-subtle: oklch(0.955 0.04 155);
-  --negative: oklch(0.53 0.2 22);
-  --negative-subtle: oklch(0.96 0.025 22);
-  --warning: oklch(0.52 0.12 65);
-  --warning-subtle: oklch(0.965 0.045 85);
+  /* Meaning: money in (blue ink), money out (red ink), heads-up (gilt), status (stamp) */
+  --positive: #1f4e9e;
+  --positive-subtle: #d6e2f2;
+  --negative: #a82a3c;
+  --negative-subtle: #f1d9d6;
+  --warning: #85560b;
+  --warning-subtle: #f0e3bf;
+  --stamp: #5b2c91;
+  --stamp-subtle: #e6dcf2;
 
-  /* Data visualisation — categorical slots, VALIDATED (not eyeballed) with the
-     dataviz skill's six-checks script: lightness band, chroma floor, colour-blind
-     (protan/deutan) separation of neighbours, normal-vision separation, contrast.
-     See docs/stage-08-dashboard-and-charts.md §3. Fixed order; never cycled. */
-  --chart-1: #5252d8; /* indigo (brand) */
-  --chart-2: #eb6834; /* orange */
-  --chart-3: #1baf7a; /* aqua */
-  --chart-4: #eda100; /* yellow */
-  --chart-5: #e87ba4; /* magenta */
-  --chart-muted: oklch(0.72 0.012 270); /* de-emphasis grey ("context" series) */
-  --chart-grid: oklch(0.93 0.004 270); /* hairline gridlines */
-  --chart-axis: oklch(0.84 0.006 270); /* baseline */
+  /* Data visualisation: categorical slots in ink colours, checked with the dataviz skill's
+     validator (lightness band, chroma, colour-blind separation of neighbours, contrast)
+     in BOTH themes. The order is part of the result: green sits beside violet and
+     gilt, never beside red. Fixed order; never cycled. */
+  --chart-1: #2b5ba6; /* fountain blue: money in, the main series */
+  --chart-2: #b8323f; /* ledger red: money out */
+  --chart-3: #7a4db0; /* stamp violet */
+  --chart-4: #10885a; /* green ink */
+  --chart-5: #b7791f; /* gilt */
+  --chart-muted: #94a38b; /* de-emphasis: pencil */
+  --chart-grid: #d2dbc6; /* hairline ruling */
+  --chart-axis: #a9b79d; /* baseline */
 
-  /* Elevation — in light mode depth comes from soft, layered shadows */
-  --elevation-1: 0 1px 2px oklch(0.2 0.02 270 / 6%), 0 1px 1px oklch(0.2 0.02 270 / 4%);
-  --elevation-2: 0 1px 2px oklch(0.2 0.02 270 / 6%), 0 4px 12px -2px oklch(0.2 0.02 270 / 8%);
-  --elevation-3: 0 2px 4px oklch(0.2 0.02 270 / 6%), 0 16px 40px -8px oklch(0.2 0.02 270 / 18%);
+  /* Edges, not shadows: a page has a ruled edge, a lifted leaf a little more. */
+  --elevation-1: 0 1px 0 oklch(0.25 0.03 150 / 7%);
+  --elevation-2: 0 1px 0 oklch(0.25 0.03 150 / 8%), 0 3px 8px -3px oklch(0.25 0.03 150 / 12%);
+  --elevation-3: 0 1px 0 oklch(0.25 0.03 150 / 10%), 0 14px 30px -12px oklch(0.25 0.04 150 / 32%);
 }
 
 .dark {
-  --background: oklch(0.145 0.006 270);
-  --foreground: oklch(0.965 0.004 270);
-  --surface: oklch(0.18 0.007 270);
-  --surface-foreground: oklch(0.965 0.004 270);
-  --surface-raised: oklch(0.215 0.008 270);
-  --muted: oklch(0.225 0.008 270);
-  --muted-foreground: oklch(0.7 0.012 270);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 14%);
+  --background: #0e1712; /* cloth cover */
+  --foreground: #e9eedd; /* paper, as ink on the cover */
+  --surface: #16221b;
+  --surface-foreground: #e9eedd;
+  --surface-raised: #1d2b23;
+  --muted: #1f2d25;
+  --muted-foreground: #a5b3a8;
+  --border: #2d3e34;
+  --input: #5c7266;
   --overlay: oklch(0 0 0 / 60%);
 
-  --primary: oklch(0.7 0.16 277);
-  --primary-foreground: oklch(0.16 0.03 277);
-  --primary-subtle: oklch(0.27 0.06 277);
-  --ring: oklch(0.7 0.16 277);
+  --primary: #dde6cf; /* in the dark the button is the paper */
+  --primary-foreground: #0e1712;
+  --primary-subtle: #24332a;
+  --ring: #86a9eb;
 
-  --positive: oklch(0.77 0.15 158);
-  --positive-subtle: oklch(0.26 0.05 158);
-  --negative: oklch(0.73 0.16 22);
-  --negative-subtle: oklch(0.27 0.06 22);
-  --warning: oklch(0.82 0.13 80);
-  --warning-subtle: oklch(0.28 0.05 80);
+  --positive: #86a9eb;
+  --positive-subtle: #1b2a44;
+  --negative: #ee8a92;
+  --negative-subtle: #3a1d22;
+  --warning: #e0ad52;
+  --warning-subtle: #3a2d12;
+  --stamp: #c3a8f0;
+  --stamp-subtle: #2f2145;
 
-  /* Dark steps of the SAME hues, chosen for the dark band and re-validated. */
-  --chart-1: #737ce8;
-  --chart-2: #d95926;
-  --chart-3: #199e70;
-  --chart-4: #c98500;
-  --chart-5: #d55181;
-  --chart-muted: oklch(0.5 0.012 270);
-  --chart-grid: oklch(1 0 0 / 7%);
-  --chart-axis: oklch(1 0 0 / 18%);
+  --chart-1: #5a8ae0;
+  --chart-2: #e0636d;
+  --chart-3: #8d6ad8;
+  --chart-4: #32a678;
+  --chart-5: #c08424;
+  --chart-muted: #62766a;
+  --chart-grid: #24342b;
+  --chart-axis: #3b5044;
 
-  /* In dark mode shadows are nearly invisible, so depth comes from lighter
-     surfaces plus a faint top highlight (like light catching an edge). */
-  --elevation-1: inset 0 1px 0 oklch(1 0 0 / 4%), 0 1px 2px oklch(0 0 0 / 40%);
-  --elevation-2: inset 0 1px 0 oklch(1 0 0 / 5%), 0 4px 12px -2px oklch(0 0 0 / 50%);
-  --elevation-3: inset 0 1px 0 oklch(1 0 0 / 6%), 0 16px 40px -8px oklch(0 0 0 / 70%);
+  --elevation-1: 0 1px 0 oklch(0 0 0 / 40%);
+  --elevation-2: 0 1px 0 oklch(0 0 0 / 40%), 0 3px 8px -3px oklch(0 0 0 / 50%);
+  --elevation-3: inset 0 1px 0 oklch(1 0 0 / 5%), 0 14px 30px -12px oklch(0 0 0 / 70%);
 }
 
 /* Layer 3: expose semantic tokens as Tailwind utilities (bg-surface, text-muted-foreground…). */
@@ -125,6 +141,8 @@
   --color-negative-subtle: var(--negative-subtle);
   --color-warning: var(--warning);
   --color-warning-subtle: var(--warning-subtle);
+  --color-stamp: var(--stamp);
+  --color-stamp-subtle: var(--stamp-subtle);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -138,8 +156,13 @@
   --shadow-elevation-2: var(--elevation-2);
   --shadow-elevation-3: var(--elevation-3);
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* Public Sans for the interface (a plain, sturdy face made for forms, with
+     tabular figures and an unslashed zero: money reads as money), Besley for
+     titles and big figures (a Clarendon: the lettering of old bookkeeping).
+     Both are in app/fonts, loaded in layout.tsx. */
+  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-besley), Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
 @theme {
@@ -147,26 +170,26 @@
      Large text gets tighter letter-spacing; small text gets looser. */
   --text-display: 3rem;
   --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.035em;
+  --text-display--letter-spacing: -0.02em;
   --text-display--font-weight: 600;
   --text-headline: 1.875rem;
   --text-headline--line-height: 1.15;
-  --text-headline--letter-spacing: -0.025em;
+  --text-headline--letter-spacing: -0.015em;
   --text-headline--font-weight: 600;
   --text-title: 1.125rem;
   --text-title--line-height: 1.4;
-  --text-title--letter-spacing: -0.01em;
+  --text-title--letter-spacing: -0.005em;
   --text-title--font-weight: 600;
   --text-caption: 0.75rem;
   --text-caption--line-height: 1.4;
   --text-caption--letter-spacing: 0.01em;
 
-  /* Radius scale */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
+  /* Radius scale: a page corner, not a bubble. Pills (rounded-full) stay for stamps and dots. */
+  --radius-sm: 0.125rem;
+  --radius-md: 0.1875rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.3125rem;
+  --radius-2xl: 0.375rem;
 
   /* Motion tokens — mirrored in src/lib/motion.ts for JavaScript animations. */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
@@ -188,21 +211,20 @@
   /* Page entrance in CSS (Stage 12): it starts as soon as the HTML arrives, without waiting for JavaScript. */
   --animate-page-in: page-in 300ms var(--ease-out-quint) both;
 
+  /* Entrances move, they don't fade (Stage 18): text is never half-transparent, so it is
+     always readable and contrast checks never catch it mid-way. */
   @keyframes page-in {
     from {
-      opacity: 0;
       transform: translateY(8px);
     }
   }
 
   @keyframes rise {
     from {
-      opacity: 0;
       transform: translateY(12px);
       filter: blur(4px);
     }
     to {
-      opacity: 1;
       transform: translateY(0);
       filter: blur(0);
     }
@@ -283,9 +305,15 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings:
-      "cv11" 1,
-      "ss01" 1;
+    /* Tabular, lining figures everywhere: money lines up in columns, like a ledger's. */
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Titles and the big figures are set in the display face. */
+  .text-display,
+  .text-headline,
+  .text-title {
+    font-family: var(--font-display);
   }
 
   /* A visible keyboard-focus ring everywhere, as a safety net. Mouse clicks don't
@@ -309,6 +337,65 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* The tally strip on the dashboard writes itself in once, a stroke at a time (Stage 18). */
+.tally-mark {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: tally-in 280ms var(--ease-out-quint) both;
+  animation-delay: calc(0.3s + var(--i, 0) * 16ms);
+}
+@keyframes tally-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.15);
+  }
+}
+
+/*
+ * "Written in" reveals (Stage 18). Pure CSS, so they start the moment the HTML
+ * arrives instead of waiting for JavaScript (see Stage 12). They WIPE rather than
+ * fade: text is never half-transparent, so it is always readable, and contrast
+ * checks never catch it mid-way. Each element sets its own start time with --d.
+ */
+.wipe-in {
+  animation: wipe-in 650ms var(--ease-out-quint) both;
+  animation-delay: var(--d, 0s);
+}
+@keyframes wipe-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.rule-in {
+  transform-origin: left;
+  animation: rule-in 600ms var(--ease-out-quint) both;
+  animation-delay: var(--d, 0s);
+}
+@keyframes rule-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+/* The stamp comes down on the page, a little crooked. */
+.stamp-in {
+  animation: stamp-in 380ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+  animation-delay: var(--d, 0s);
+}
+@keyframes stamp-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+    transform: scale(1.4) rotate(-9deg);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    transform: scale(1) rotate(-2deg);
   }
 }

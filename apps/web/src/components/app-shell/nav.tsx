@@ -93,7 +93,10 @@ export function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: 
                   layoutId="nav-active"
                   transition={spring.snappy}
                   className="absolute inset-0 rounded-lg bg-surface shadow-elevation-1 ring-1 ring-border"
-                />
+                >
+                  {/* The bookmark: where you are in the book. */}
+                  <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-sm bg-negative" />
+                </motion.span>
               )}
               <Icon className={cn("relative size-4", active && "text-primary")} />
               <span className="relative">{label}</span>

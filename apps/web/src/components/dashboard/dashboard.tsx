@@ -27,15 +27,11 @@ import { NoAccountsNotice } from "@/components/overview/no-accounts";
 import { ErrorState, loadFailed } from "@/components/ui/error-state";
 import { Page } from "@/components/app-shell/page";
 import { DragHandle } from "@/components/charts/chart-card";
-import { shortMoney } from "@/components/charts/format";
-import { Meter } from "@/components/charts/meter";
-import { Sparkline } from "@/components/charts/sparkline";
-import { StatTile } from "@/components/charts/stat-tile";
+import { MonthStatement } from "./month-statement";
 import {
   TREND_RANGES,
   monthToDate,
   monthWindows,
-  relativeChange,
   savingsRate,
   trendRange,
   type TrendRange,
@@ -167,74 +163,17 @@ export function Dashboard({ householdId }: { householdId: string }) {
           }
         />
       )}
-      <section aria-labelledby="this-month" className="space-y-4">
-        <h2 id="this-month" className="text-sm font-medium text-muted-foreground">
-          This month so far
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.7fr_1fr_1fr_1fr]">
-          {/* Exactly ONE hero figure per view: the number the dashboard leads with. */}
-          <StatTile
-            hero
-            label="Net worth"
-            valueMinor={netWorth}
-            currency={currency}
-            className="md:col-span-2 xl:col-span-1"
-            delta={
-              netWorth !== undefined && lastMonthEnd !== undefined
-                ? {
-                    change: relativeChange(netWorth, lastMonthEnd) ?? NaN,
-                    period: "end of last month",
-                    upIsGood: true,
-                  }
-                : undefined
-            }
-            trend={points && <Sparkline values={points.map((p) => p.balanceMinor)} />}
-          />
-          <StatTile
-            label="Income"
-            valueMinor={mtd?.current.income}
-            currency={currency}
-            delta={
-              mtd
-                ? relativeChange(mtd.current.income, mtd.previous.income) === null
-                  ? null
-                  : {
-                      change: relativeChange(mtd.current.income, mtd.previous.income)!,
-                      period: "same days last month",
-                      upIsGood: true,
-                    }
-                : undefined
-            }
-          />
-          <StatTile
-            label="Spending"
-            valueMinor={mtd?.current.spending}
-            currency={currency}
-            delta={
-              mtd
-                ? relativeChange(mtd.current.spending, mtd.previous.spending) === null
-                  ? null
-                  : {
-                      change: relativeChange(mtd.current.spending, mtd.previous.spending)!,
-                      period: "same days last month",
-                      upIsGood: false,
-                    }
-                : undefined
-            }
-          />
-          <div className="flex min-w-0 flex-col gap-2 rounded-2xl border border-border bg-surface p-5 shadow-elevation-1">
-            <p className="text-sm text-muted-foreground">Savings rate</p>
-            <p className="text-2xl font-semibold tracking-tight">
-              {rate === undefined ? "…" : rate === null ? "—" : `${Math.round(rate * 100)}%`}
-            </p>
-            <Meter value={rate ?? 0} target={0.2} label="Savings rate this month" />
-            <p className="text-caption text-muted-foreground">
-              {mtd && rate !== null && rate !== undefined
-                ? `Kept ${shortMoney(mtd.current.income - mtd.current.spending, currency)} of ${shortMoney(mtd.current.income, currency)} earned`
-                : "Appears once income arrives"}
-            </p>
-          </div>
-        </div>
+      <section aria-labelledby="this-month" className="space-y-6">
+        <MonthStatement
+          now={householdNow(timeZone)}
+          currency={currency}
+          receivedMinor={mtd?.current.income}
+          spentMinor={mtd?.current.spending}
+          inHandMinor={netWorth}
+          broughtForwardMinor={lastMonthEnd}
+          previousSpentMinor={mtd?.previous.spending}
+          savingsRate={rate}
+        />
         <SpendingPaceCard days={daily.data?.days} currency={currency} pending={daily.isPending} />
       </section>
 
