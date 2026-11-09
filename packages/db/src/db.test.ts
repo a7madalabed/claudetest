@@ -285,7 +285,7 @@ describe("queries", () => {
 
   it("computes account balances including the opening balance", async () => {
     const householdId = await fixture();
-    const balances = await getAccountBalances(db, householdId);
+    const balances = await getAccountBalances(db, householdId, "2026-12-31");
     expect(balances.map((b) => [b.name, b.balanceMinor])).toEqual([
       ["Checking", 300_000 - 4_550 - 1_200 - 9_999 - 50_000],
       ["Savings", 10_000 + 50_000],
@@ -316,20 +316,20 @@ describe("queries", () => {
   it("never leaks data between households", async () => {
     const householdId = await fixture();
     const other = await makeHousehold("Other");
-    expect(await getAccountBalances(db, other.household.id)).toHaveLength(1);
-    expect(await getAccountBalances(db, householdId)).toHaveLength(2);
+    expect(await getAccountBalances(db, other.household.id, "2026-12-31")).toHaveLength(1);
+    expect(await getAccountBalances(db, householdId, "2026-12-31")).toHaveLength(2);
   });
 });
 
 describe("seed data", () => {
   it("is deterministic and internally consistent", async () => {
     const first = await seedDemoData(db, { today: "2026-06-15", seed: 7 });
-    const balances = await getAccountBalances(db, first.householdId);
+    const balances = await getAccountBalances(db, first.householdId, "2026-06-15");
     const members = await db.select().from(householdMembers);
 
     await truncateAll(db);
     const second = await seedDemoData(db, { today: "2026-06-15", seed: 7 });
-    const balancesAgain = await getAccountBalances(db, second.householdId);
+    const balancesAgain = await getAccountBalances(db, second.householdId, "2026-06-15");
 
     expect(second.transactionCount).toBe(first.transactionCount);
     expect(balancesAgain.map((b) => b.balanceMinor)).toEqual(balances.map((b) => b.balanceMinor));

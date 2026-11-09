@@ -1,4 +1,5 @@
-import { getAccountBalances } from "@ledgerly/db";
+import { eq, getAccountBalances, households } from "@ledgerly/db";
+import { todayIn } from "@ledgerly/shared";
 import { describe, expect, it } from "vitest";
 import { OWNER, request, useTestApp } from "../../test/helpers.js";
 
@@ -11,7 +12,16 @@ describe("accounts", () => {
   it("lists accounts with balances matching the database", async () => {
     const response = await as("GET");
     expect(response.statusCode).toBe(200);
-    const expected = await getAccountBalances(ctx.db, ctx.fixtures.householdId);
+    // As of the household's own today, exactly what the API uses.
+    const [household] = await ctx.db
+      .select({ timeZone: households.timeZone })
+      .from(households)
+      .where(eq(households.id, ctx.fixtures.householdId));
+    const expected = await getAccountBalances(
+      ctx.db,
+      ctx.fixtures.householdId,
+      todayIn(household!.timeZone),
+    );
     expect(
       response
         .json()

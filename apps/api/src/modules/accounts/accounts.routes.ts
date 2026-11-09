@@ -27,14 +27,20 @@ export const accountRoutes: FastifyPluginAsyncZod = async (app) => {
       config: { cache: true }, // per household data version (Stage 12)
       schema: {
         tags,
-        summary: "List accounts with current balances",
+        summary:
+          "List accounts with their balances as of today (entries dated later aren't counted)",
         params: HouseholdParamsSchema,
         querystring: AccountListQuerySchema,
         response: { 200: z.object({ data: z.array(AccountSchema) }), ...commonProblems },
       },
     },
     async (request) => ({
-      data: await service.listAccounts(app.db, request.params.householdId, request.query),
+      data: await service.listAccounts(
+        app.db,
+        request.params.householdId,
+        request.household!.today,
+        request.query,
+      ),
     }),
   );
 
@@ -70,7 +76,12 @@ export const accountRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) =>
-      service.getAccount(app.db, request.params.householdId, request.params.accountId),
+      service.getAccount(
+        app.db,
+        request.params.householdId,
+        request.params.accountId,
+        request.household!.today,
+      ),
   );
 
   app.patch(
@@ -90,6 +101,7 @@ export const accountRoutes: FastifyPluginAsyncZod = async (app) => {
         request.params.householdId,
         request.params.accountId,
         request.body,
+        request.household!.today,
       ),
   );
 

@@ -7476,7 +7476,7 @@
     },
     "/v1/households/{householdId}/accounts": {
       "get": {
-        "summary": "List accounts with current balances",
+        "summary": "List accounts with their balances as of today (entries dated later aren't counted)",
         "tags": [
           "Accounts"
         ],

@@ -11,6 +11,7 @@ import {
 import {
   addMonths,
   projectGoal,
+  throughToday,
   todayIn,
   toYearMonth,
   type CreateGoalInput,
@@ -38,10 +39,19 @@ async function withProjection(
   onDate: string,
 ): Promise<GoalDto> {
   const month = toYearMonth(onDate);
-  const history = await getAccountMonthEndBalances(db, householdId, goal.accountId, {
-    from: `${addMonths(month, -COMPLETED_MONTHS)}-01`,
-    to: `${addMonths(month, 1)}-01`,
-  });
+  // As of today (Stage 19): entries dated later haven't happened, so they aren't in the balance.
+  const history = await getAccountMonthEndBalances(
+    db,
+    householdId,
+    goal.accountId,
+    throughToday(
+      {
+        from: `${addMonths(month, -COMPLETED_MONTHS)}-01`,
+        to: `${addMonths(month, 1)}-01`,
+      },
+      onDate,
+    ),
+  );
   // The last point is THIS month (in progress): it's the current balance, but it
   // would drag the pace down mid-month, so the pace uses completed months only.
   const balanceMinor = history.at(-1)?.balanceMinor ?? 0;

@@ -27,9 +27,10 @@ import { conflict, notFound, unprocessable } from "../../lib/errors.js";
  * subquery a bare `id` would mean the TRANSACTION's id — the correlation would
  * silently never match. (Our tests caught this; see the doc §5.3.)
  */
-const balanceMinor = sql<number>`(${accounts.openingBalanceMinor} + coalesce((
+const balanceMinor = (today: string) =>
+  sql<number>`(${accounts.openingBalanceMinor} + coalesce((
     select sum(t.amount_minor) from ${transactions} as t
-    where t.account_id = "accounts"."id"
+    where t.account_id = "accounts"."id" and t.occurred_on <= ${today}::date
   ), 0))::bigint`.mapWith(Number);
 
 /**
@@ -50,15 +51,16 @@ function toDto(row: Account & { balanceMinor: number }): AccountDto {
   };
 }
 
-const selectWithBalance = (db: DbExecutor) =>
-  db.select({ account: accounts, balanceMinor }).from(accounts);
+const selectWithBalance = (db: DbExecutor, today: string) =>
+  db.select({ account: accounts, balanceMinor: balanceMinor(today) }).from(accounts);
 
 export async function listAccounts(
   db: DbExecutor,
   householdId: string,
+  today: string,
   options: { includeArchived: boolean },
 ) {
-  const rows = await selectWithBalance(db)
+  const rows = await selectWithBalance(db, today)
     .where(
       and(
         eq(accounts.householdId, householdId),
@@ -69,8 +71,13 @@ export async function listAccounts(
   return rows.map((row) => toDto({ ...row.account, balanceMinor: row.balanceMinor }));
 }
 
-export async function getAccount(db: DbExecutor, householdId: string, accountId: string) {
-  const [row] = await selectWithBalance(db).where(
+export async function getAccount(
+  db: DbExecutor,
+  householdId: string,
+  accountId: string,
+  today: string,
+) {
+  const [row] = await selectWithBalance(db, today).where(
     and(eq(accounts.householdId, householdId), eq(accounts.id, accountId)),
   );
   if (!row) throw notFound("Account");
@@ -88,7 +95,7 @@ const nameTaken = (name: string) =>
  */
 export async function createAccount(
   db: DbExecutor,
-  household: { id: string; baseCurrency: string },
+  household: { id: string; baseCurrency: string; today: string },
   input: CreateAccountInput,
 ) {
   const householdId = household.id;
@@ -105,7 +112,7 @@ export async function createAccount(
       .insert(accounts)
       .values({ householdId, ...input, currency })
       .returning();
-    return getAccount(db, householdId, created!.id);
+    return getAccount(db, householdId, created!.id, household.today);
   } catch (error) {
     // Let the UNIQUE constraint decide, instead of "check then insert" (which races).
     if (isPgError(error, "uniqueViolation", "accounts_household_id_name_key"))
@@ -119,6 +126,7 @@ export async function updateAccount(
   householdId: string,
   accountId: string,
   input: UpdateAccountInput,
+  today: string,
 ) {
   const { archived, ...fields } = input;
   try {
@@ -139,7 +147,7 @@ export async function updateAccount(
       throw nameTaken(input.name ?? "");
     throw error;
   }
-  return getAccount(db, householdId, accountId);
+  return getAccount(db, householdId, accountId, today);
 }
 
 export async function deleteAccount(db: DbExecutor, householdId: string, accountId: string) {

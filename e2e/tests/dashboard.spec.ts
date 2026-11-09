@@ -31,5 +31,16 @@ test.describe("the month statement", () => {
     // This page once showed "Net worth −$550" and an invented "Accounts added or adjusted −$1,500".
     await expect(statement).not.toContainText("adjusted");
     await expect(statement).not.toContainText("$1,500.00");
+
+    // Everything is "as of today" (Stage 19): the rest of the page says the same.
+    // Before, the accounts and the net-worth chart counted tomorrow's rent and said $950.
+    await expect(page.getByText("$950.00")).toHaveCount(0);
+    await page.goto(`${user.home}/accounts`);
+    await expect(page.getByText("$2,450.00").first()).toBeVisible();
+    await expect(page.getByText("$950.00")).toHaveCount(0);
+
+    // Tomorrow's rent is still listed: you can see what is coming.
+    await page.goto(`${user.home}/transactions`);
+    await expect(page.getByText("Rent, dated tomorrow")).toBeVisible();
   });
 });

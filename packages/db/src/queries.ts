@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database } from "./client.js";
 import { accounts, categories, transactions } from "./schema.js";
@@ -15,8 +15,12 @@ import { accounts, categories, transactions } from "./schema.js";
  * the household's base currency is a later concern (documented in the Stage 3 doc).
  */
 
-/** Current balance of every active account: opening balance + all transactions. */
-export function getAccountBalances(db: Database, householdId: string) {
+/**
+ * Balance of every active account AS OF a date: opening balance + every
+ * transaction dated on or before it (Stage 19: entries dated later haven't
+ * happened yet). `asOf` is "YYYY-MM-DD", normally the household's today.
+ */
+export function getAccountBalances(db: Database, householdId: string, asOf: string) {
   return db
     .select({
       id: accounts.id,
@@ -30,7 +34,10 @@ export function getAccountBalances(db: Database, householdId: string) {
       transactionCount: sql<number>`count(${transactions.id})::int`.mapWith(Number),
     })
     .from(accounts)
-    .leftJoin(transactions, eq(transactions.accountId, accounts.id))
+    .leftJoin(
+      transactions,
+      and(eq(transactions.accountId, accounts.id), lte(transactions.occurredOn, asOf)),
+    )
     .where(and(eq(accounts.householdId, householdId), isNull(accounts.archivedAt)))
     .groupBy(accounts.id)
     .orderBy(asc(accounts.name));
@@ -287,7 +294,11 @@ export async function getBudgetMonthlySpending(
   }));
 }
 
-/** An account's balance at the end of each month in [from, to) — the history behind goal projections. */
+/**
+ * An account's balance at the end of each month in [from, to) — the history behind
+ * goal projections. Nothing dated on or after `to` is counted (the caller passes
+ * tomorrow for "as of today"), so the current month's point is today's balance.
+ */
 export async function getAccountMonthEndBalances(
   db: Database,
   householdId: string,
@@ -301,7 +312,8 @@ export async function getAccountMonthEndBalances(
     select to_char(m.month, 'YYYY-MM') as month,
            (a.opening_balance_minor + coalesce((
               select sum(t.amount_minor) from transactions t
-              where t.account_id = a.id and t.occurred_on < (m.month + interval '1 month')::date
+              where t.account_id = a.id
+                and t.occurred_on < least((m.month + interval '1 month')::date, ${range.to}::date)
            ), 0))::bigint as balance_minor
     from months m
     cross join accounts a

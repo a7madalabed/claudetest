@@ -30,7 +30,12 @@ export const budgetRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) =>
-      service.getBudgetMonth(app.db, request.params.householdId, request.query.month),
+      service.getBudgetMonth(
+        app.db,
+        request.params.householdId,
+        request.query.month,
+        request.household!.today,
+      ),
   );
 
   app.post(
@@ -45,7 +50,12 @@ export const budgetRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const budget = await service.createBudget(app.db, request.params.householdId, request.body);
+      const budget = await service.createBudget(
+        app.db,
+        request.params.householdId,
+        request.body,
+        request.household!.today,
+      );
       return reply
         .status(201)
         .header("location", `/v1/households/${request.params.householdId}/budgets/${budget.id}`)

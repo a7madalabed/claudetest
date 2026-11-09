@@ -32,7 +32,13 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: CashflowReportSchema, ...commonProblems },
       },
     },
-    async (request) => service.cashflowReport(app.db, request.params.householdId, request.query),
+    async (request) =>
+      service.cashflowReport(
+        app.db,
+        request.params.householdId,
+        request.query,
+        request.household!.today,
+      ),
   );
 
   app.get(
@@ -48,7 +54,12 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) =>
-      service.spendingByCategoryReport(app.db, request.params.householdId, request.query),
+      service.spendingByCategoryReport(
+        app.db,
+        request.params.householdId,
+        request.query,
+        request.household!.today,
+      ),
   );
 
   app.get(
@@ -64,10 +75,12 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) =>
-      service.netWorthReport(app.db, request.params.householdId, {
-        ...request.query,
-        currency: request.household!.baseCurrency,
-      }),
+      service.netWorthReport(
+        app.db,
+        request.params.householdId,
+        { ...request.query, currency: request.household!.baseCurrency },
+        request.household!.today,
+      ),
   );
 
   app.get(
@@ -100,7 +113,12 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) =>
-      service.dailyCashflowReport(app.db, request.params.householdId, request.query),
+      service.dailyCashflowReport(
+        app.db,
+        request.params.householdId,
+        request.query,
+        request.household!.today,
+      ),
   );
 
   app.get(

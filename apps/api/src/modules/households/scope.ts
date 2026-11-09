@@ -7,7 +7,7 @@ import {
   sql,
   type Database,
 } from "@ledgerly/db";
-import { IdSchema, type HouseholdRole } from "@ledgerly/shared";
+import { IdSchema, todayIn, type HouseholdRole } from "@ledgerly/shared";
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { defaultRequiredRole, hasAtLeastRole } from "../../lib/authorization.js";
@@ -26,6 +26,11 @@ declare module "fastify" {
        * always mean the household's (Stage 17), never the server's UTC.
        */
       timeZone: string;
+      /**
+       * Today in the household's time zone ("2026-11-09"). Every balance, total
+       * and chart is "as of today" (Stage 19): entries dated later haven't happened.
+       */
+      today: string;
       /** Bumped by triggers on every data change: the response cache's key (Stage 12). */
       dataVersion: number;
     };
@@ -102,6 +107,7 @@ const scope: FastifyPluginAsync = async (app) => {
       role: membership.role,
       baseCurrency: membership.baseCurrency,
       timeZone: membership.timeZone,
+      today: todayIn(membership.timeZone),
       dataVersion: membership.dataVersion ?? 0,
     };
   });

@@ -44,9 +44,10 @@ export const evaluateBudgetsJob = defineJob({
       .where(eq(households.id, householdId));
     if (!household) return; // deleted since: nothing to do
     // The job may run just after midnight on the 1st: only the CURRENT month alerts.
-    if (toYearMonth(todayIn(household.timeZone)) !== month) return;
+    const today = todayIn(household.timeZone);
+    if (toYearMonth(today) !== month) return;
 
-    const view = await getBudgetMonth(db, householdId, month);
+    const view = await getBudgetMonth(db, householdId, month, today);
     let sent = 0;
     for (const budget of view.budgets) {
       if (budget.status === "ok") continue;

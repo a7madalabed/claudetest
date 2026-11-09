@@ -17,6 +17,7 @@ import {
   STATUS_RANK,
   addMonths,
   computeBudgetMonth,
+  throughToday,
   todayIn,
   toYearMonth,
   type BudgetDto,
@@ -34,7 +35,16 @@ import { conflict, notFound, unprocessable } from "../../lib/errors.js";
 
 const firstOf = (month: string) => `${month}-01`;
 
-export async function getBudgetMonth(db: Database, householdId: string, month: string) {
+/**
+ * One month's budgets. Spending is "as of today" (Stage 19): a bill dated later
+ * this month isn't spent yet, so it doesn't use up the budget until its day comes.
+ */
+export async function getBudgetMonth(
+  db: Database,
+  householdId: string,
+  month: string,
+  today: string,
+) {
   const rows = await db
     .select({
       id: budgets.id,
@@ -63,7 +73,7 @@ export async function getBudgetMonth(db: Database, householdId: string, month: s
     (min, r) => (r.startMonth < min ? r.startMonth : min),
     firstOf(month),
   );
-  const range = { from: earliest, to: firstOf(addMonths(month, 1)) };
+  const range = throughToday({ from: earliest, to: firstOf(addMonths(month, 1)) }, today);
   const [spending, unbudgetedSpendingMinor] = await Promise.all([
     ids.length ? getBudgetMonthlySpending(db, householdId, range) : Promise.resolve([]),
     getUnbudgetedSpending(db, householdId, { from: firstOf(month), to: range.to }),
@@ -111,8 +121,14 @@ export async function getBudgetMonth(db: Database, householdId: string, month: s
   };
 }
 
-async function getBudgetFor(db: Database, householdId: string, budgetId: string, month: string) {
-  const view = await getBudgetMonth(db, householdId, month);
+async function getBudgetFor(
+  db: Database,
+  householdId: string,
+  budgetId: string,
+  month: string,
+  today: string,
+) {
+  const view = await getBudgetMonth(db, householdId, month, today);
   const budget = view.budgets.find((b) => b.id === budgetId);
   if (!budget) throw notFound("Budget");
   return budget;
@@ -156,7 +172,12 @@ async function validateCategory(db: DbExecutor, householdId: string, categoryId:
   }
 }
 
-export async function createBudget(db: Database, householdId: string, input: CreateBudgetInput) {
+export async function createBudget(
+  db: Database,
+  householdId: string,
+  input: CreateBudgetInput,
+  today: string,
+) {
   try {
     const id = await db.transaction(async (tx) => {
       // The overlap rule spans ROWS (a parent's budget and its child's), so no
@@ -182,7 +203,7 @@ export async function createBudget(db: Database, householdId: string, input: Cre
       });
       return created!.id;
     });
-    return getBudgetFor(db, householdId, id, input.startMonth);
+    return getBudgetFor(db, householdId, id, input.startMonth, today);
   } catch (error) {
     if (isPgError(error, "uniqueViolation", "budgets_household_category_key")) {
       throw conflict("budget_exists", "This category already has a budget. Edit it instead.");
@@ -234,7 +255,7 @@ export async function updateBudget(
     const now = toYearMonth(todayIn(timeZone));
     return input.effectiveMonth ?? (start > now ? start : now);
   });
-  return getBudgetFor(db, householdId, budgetId, month);
+  return getBudgetFor(db, householdId, budgetId, month, todayIn(timeZone));
 }
 
 export async function deleteBudget(db: Database, householdId: string, budgetId: string) {

@@ -34,3 +34,19 @@ export function todayIn(timeZone: string, now = new Date()): string {
     day: "2-digit",
   }).format(now);
 }
+
+/** The day after an ISO date: "2026-11-30" → "2026-12-01". */
+export function dayAfter(isoDate: string): string {
+  return new Date(Date.parse(`${isoDate}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Stops a [from, to) range at the end of `today` (Stage 19: everything is "as of
+ * today"). Entries dated after today haven't happened yet, so no balance, total
+ * or chart counts them. `to` is exclusive, so "through today" means "before
+ * tomorrow". A range that already ends today or earlier is returned unchanged.
+ */
+export function throughToday<R extends { from: string; to: string }>(range: R, today: string): R {
+  const end = dayAfter(today);
+  return range.to > end ? { ...range, to: end } : range;
+}

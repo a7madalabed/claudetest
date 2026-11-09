@@ -16,12 +16,23 @@ import {
   transactions,
   type Database,
 } from "@ledgerly/db";
-import { detectRecurring, todayIn, type DashboardWidget } from "@ledgerly/shared";
+import { detectRecurring, throughToday, type DashboardWidget } from "@ledgerly/shared";
 
 type Range = { from: string; to: string };
 
-export async function cashflowReport(db: Database, householdId: string, range: Range) {
-  const months = await getMonthlyCashflow(db, householdId, range);
+/*
+ * Every total here is "as of today" (Stage 19): a range that reaches past the
+ * household's today is cut there (`throughToday`), so an entry dated later, a
+ * bill next week or a paycheque next month, is in no figure until its day comes.
+ */
+
+export async function cashflowReport(
+  db: Database,
+  householdId: string,
+  range: Range,
+  today: string,
+) {
+  const months = await getMonthlyCashflow(db, householdId, throughToday(range, today));
   return {
     months: months.map((month) => ({
       ...month,
@@ -33,10 +44,12 @@ export async function cashflowReport(db: Database, householdId: string, range: R
 export async function spendingByCategoryReport(
   db: Database,
   householdId: string,
-  range: Range & { parentId?: string },
+  query: Range & { parentId?: string },
+  today: string,
 ) {
-  const rows = range.parentId
-    ? await getSpendingBySubcategory(db, householdId, range.parentId, range)
+  const range = throughToday(query, today);
+  const rows = query.parentId
+    ? await getSpendingBySubcategory(db, householdId, query.parentId, range)
     : await getSpendingByCategory(db, householdId, range);
   const totalMinor = rows.reduce((sum, row) => sum + row.spendingMinor, 0);
   return {
@@ -53,17 +66,21 @@ export async function netWorthReport(
   db: Database,
   householdId: string,
   range: Range & { currency: string },
+  today: string,
 ) {
-  return { currency: range.currency, points: await getNetWorthSeries(db, householdId, range) };
+  return {
+    currency: range.currency,
+    points: await getNetWorthSeries(db, householdId, throughToday(range, today)),
+  };
 }
 
 /** The dashboard's month statement, as of the household's own today (Stage 19). */
 export async function monthStatementReport(
   db: Database,
   householdId: string,
-  household: { baseCurrency: string; timeZone: string },
+  household: { baseCurrency: string; today: string },
 ) {
-  const today = todayIn(household.timeZone);
+  const { today } = household;
   const monthStart = `${today.slice(0, 7)}-01`;
   return {
     month: today.slice(0, 7),
@@ -76,8 +93,13 @@ export async function monthStatementReport(
   };
 }
 
-export async function dailyCashflowReport(db: Database, householdId: string, range: Range) {
-  return { days: await getDailyCashflow(db, householdId, range) };
+export async function dailyCashflowReport(
+  db: Database,
+  householdId: string,
+  range: Range,
+  today: string,
+) {
+  return { days: await getDailyCashflow(db, householdId, throughToday(range, today)) };
 }
 
 /**

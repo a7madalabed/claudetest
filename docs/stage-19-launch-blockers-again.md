@@ -25,16 +25,17 @@
 
 ## 1. What we built
 
-| Area       | Change                                                                                                                       |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| CI         | The restore drill exits `0` when it passes, so CI can go green again and deploys can run                                     |
-| Dashboard  | The month statement's four figures come from **one** server calculation; the invented "adjusted" line is gone                |
-| Dashboard  | "In hand today" is now "Net worth today" (a loan or card lowers it, so it isn't cash in hand)                                |
-| Links      | "Create one" is underlined; the accessibility sweep now visits the empty and first-run states it used to skip                |
-| Legal      | Public **Privacy** and **Terms** pages, linked from sign-up; the operator's name and contact come from the server's settings |
-| Operations | A disk-space alert (two levels, plus one for the watcher going quiet); local backups thinned to one per day after two days   |
-| Small      | `pnpm db:up` also starts the mail inbox; one minus sign everywhere; the design style guide is not public in production       |
-| Home page  | The public front door says what Ledgerly is and how to start; the build-progress page is gone, with the version it showed    |
+| Area       | Change                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| CI         | The restore drill exits `0` when it passes, so CI can go green again and deploys can run                                              |
+| Dashboard  | The month statement's four figures come from **one** server calculation; the invented "adjusted" line is gone                         |
+| Dashboard  | "In hand today" is now "Net worth today" (a loan or card lowers it, so it isn't cash in hand)                                         |
+| Links      | "Create one" is underlined; the accessibility sweep now visits the empty and first-run states it used to skip                         |
+| Legal      | Public **Privacy** and **Terms** pages, linked from sign-up; the operator's name and contact come from the server's settings          |
+| Operations | A disk-space alert (two levels, plus one for the watcher going quiet); local backups thinned to one per day after two days            |
+| Small      | `pnpm db:up` also starts the mail inbox; one minus sign everywhere; the design style guide is not public in production                |
+| Home page  | The public front door says what Ledgerly is and how to start; the build-progress page is gone, with the version it showed             |
+| Everywhere | Every balance, total and chart is **as of today**: nothing dated later is counted; budget alerts still fire on the day a bill arrives |
 
 ---
 
@@ -118,6 +119,30 @@ The page's own claim is now a property the code guarantees, so the invented line
 
 > **The lesson:** if a screen shows a sum, compute the sum once, in one place. Two numbers that "should" agree will, sooner or later, be computed by two different rules, and a "fudge" line that hides the difference turns a visible bug into a silent one.
 
+### 4.1 The same rule, everywhere
+
+Fixing the statement exposed a second problem, confirmed with a test: with a $500 bill dated next week on a $1,000 account, the statement said **$1,000** while the account balance and the net-worth chart said **$500**, on the same dashboard. You chose the rule: **everything is "as of today"**. An entry dated after today hasn't happened, so it is in no balance, no total and no chart until its day comes.
+
+One place decides "today" for a request: the household check that already runs on every request now carries `request.household.today`. One shared helper, `throughToday(range, today)`, cuts a date range at the end of today. It is applied to:
+
+| What                               | Change                                                          |
+| ---------------------------------- | --------------------------------------------------------------- |
+| Account balances (list and detail) | counts entries dated on or before today                         |
+| Net-worth chart                    | its current-month point is today's balance, not the month-end's |
+| Cash flow, daily cash flow         | this month's income and spending stop at today                  |
+| Spending by category               | stops at today                                                  |
+| Budgets (spent, remaining, alerts) | a bill dated the 20th doesn't use the budget until the 20th     |
+| Goals                              | the balance is today's                                          |
+
+**What did not change:** the transactions list still shows entries dated in the future (you can see what is coming), and a filtered list's summary still describes the rows you filtered.
+
+**A trap, and its fix.** Budget alerts are queued by a database trigger when a transaction changes. A bill entered on the 9th and dated the 20th changes nothing on the 20th, yet that is the day it starts to count, so the alert would have waited for the next unrelated edit. A new hourly job, `budgets.evaluate-due`, finds households holding an entry that was **recorded before its own date and is dated today** (in the household's time zone) and queues the same evaluation the trigger would have. It is safe to repeat: evaluations are keyed per household and month, and every alert is de-duplicated. The test walks the real story: the 10th (no alert), then the 20th with nobody editing anything (alert).
+
+**Two things found on the way.**
+
+- The goals query worked out each month's balance from the end of the _month_, ignoring where the range ended, so cutting the range alone would not have fixed it. The query itself now stops at the range's end.
+- My first version of the alert test had a **time bomb**: it used fixed November 2026 dates, but the check depends on the entry having been recorded _before_ its date, by the real clock. After 20 November it would have failed for no reason. The dates are now computed from the real clock (the pretend "today" is always next month), so it cannot rot.
+
 ---
 
 ## 5. Links you couldn't see
@@ -181,7 +206,7 @@ The third is the same idea as the backups' dead man's switch (Stage 16): if the 
 Honest notes, not excuses:
 
 - **The first push of this stage failed CI, on my own new code.** `backup.sh` changes directory at its top, and the new call to `prune-backups.sh` found it through a path that was only valid _before_ that. It broke when CI ran the script from the repo root (`deploy/scripts/backup.sh`) and would have worked by luck from the runbook's cron line. My local check had run the pipeline outside `backup.sh`, so it missed this; CI's real "Back up, then prove the backup restores" step caught it. The fix resolves the script's own folder to an absolute path first, and was reproduced using `backup.sh`'s real header lines before it was fixed. The second CI run passed. **The lesson: test an integration through the real entry point, not a lookalike.**
-- **Three different "net worths" when a bill is dated in the future (confirmed, not fixed).** With a $1,000 account and a $500 bill dated next week: the month statement says **$1,000** (as of today), the account balance says **$500**, and the net-worth chart's current-month point says **$500**. Both of the latter count entries that haven't happened yet. The statement is right for what it claims ("today"); the other two behave like a _projected_ balance. Showing both on one dashboard is confusing. Making everything "as of today" (or labelling the others as projected) is a product decision that touches the Accounts page, the charts and the API's `balanceMinor`, so it was not changed here.
+- **Three different "net worths" when a bill is dated in the future** was confirmed with a test and then **fixed**: see [section 4.1](#41-the-same-rule-everywhere).
 - **A stale test server fooled a browser check.** Next.js renames its own process to `next-server`, so `pkill -f server.js` never stopped it, and a pre-rebuild copy kept serving pages whose script files were gone. If a browser check shows "This page couldn't load", look for an old server first.
 - **One timing test failed once under load, and was not reproduced.** `worker.test.ts › wakes on NOTIFY instead of waiting for the next poll` gives the worker 2 seconds to wake up. It failed ("not done within 2000 ms") in one full API run while other work was running, then passed 4 of 4 times on its own and in 3 further full runs. These changes don't touch the worker, so it is not believed to be caused by them, but "not reproduced" is not "fixed": if CI shows it, a looser budget (or retry) is the likely cure.
 - **Only `restore-drill.sh` had the exit-code bug**, and CI's real drill step is what guards it; no separate test was added for it.
@@ -203,7 +228,8 @@ Honest notes, not excuses:
 | `pnpm db:up`                                | Postgres only (2 tests failed on a fresh run)    | Postgres and the mail inbox                          |
 | Total minus sign                            | `-$550.00`                                       | `−$550.00`                                           |
 | Home page                                   | a build-progress page, with the API's version    | what it is and how to start; nothing about the build |
-| Tests                                       | 492 (db 35, api 222, shared 89, web 117, e2e 29) | **516** (db 35, api 224, shared 89, web 128, e2e 40) |
+| A bill dated next week                      | statement $1,000, accounts and chart $500        | all say $1,000 (as of today)                         |
+| Tests                                       | 492 (db 35, api 222, shared 89, web 117, e2e 29) | **524** (db 35, api 228, shared 93, web 128, e2e 40) |
 
 ---
 
@@ -238,4 +264,3 @@ None of this can be done from the code. The runbook's _Setting up a server_ has 
 - **Email:** verify your sending domain (SPF, DKIM, DMARC).
 - **Legal:** set `LEGAL_OPERATOR_NAME` and `LEGAL_CONTACT_EMAIL` in `deploy/.env`, read both pages, and have a lawyer read them if real people's money data is involved.
 - **Read the new home page** (`/`) and change its words or look to taste. It is a deliberately plain first version.
-- **Decide, on purpose:** whether account balances should include bills dated in the future (see section 9: this is now a confirmed inconsistency on the dashboard).
