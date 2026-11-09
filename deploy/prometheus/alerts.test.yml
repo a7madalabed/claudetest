@@ -166,3 +166,62 @@ tests:
               summary: "import.process jobs failed permanently in the last 30 minutes"
               description: "They used up their retries; their work did not happen. Look at last_error in the jobs table."
               runbook_url: "docs/runbook.md#jobs-failing"
+
+  # ── The disk fills up (Stage 19) ───────────────────────────────────────────
+  # A full disk stops Postgres, and nothing else in this file would notice.
+  - interval: 1m
+    input_series:
+      # 100 units in all. 50 free, then 15 free (warning), then 5 free (critical).
+      - series: 'node_filesystem_size_bytes{job="node", instance="node-exporter:9100", mountpoint="/"}'
+        values: "100x60"
+      - series: 'node_filesystem_avail_bytes{job="node", instance="node-exporter:9100", mountpoint="/"}'
+        values: "50x9 15x24 5x30"
+    alert_rule_test:
+      - eval_time: 9m # plenty of room
+        alertname: LedgerlyDiskFillingUp
+        exp_alerts: []
+      - eval_time: 15m # under 20% free for 6 minutes: not yet ("for" avoids a blip)
+        alertname: LedgerlyDiskFillingUp
+        exp_alerts: []
+      - eval_time: 28m # under 20% free for over 15 minutes
+        alertname: LedgerlyDiskFillingUp
+        exp_alerts:
+          - exp_labels:
+              { severity: warning, job: node, instance: "node-exporter:9100", mountpoint: "/" }
+            exp_annotations:
+              summary: "The server's disk has 15% free"
+              description: "Postgres stops when the disk is full. Backups and logs are the usual cause."
+              runbook_url: "docs/runbook.md#disk-filling-up"
+      - eval_time: 33m # 5% free for under 5 minutes: not yet critical
+        alertname: LedgerlyDiskAlmostFull
+        exp_alerts: []
+      - eval_time: 40m # 5% free for over 5 minutes
+        alertname: LedgerlyDiskAlmostFull
+        exp_alerts:
+          - exp_labels:
+              { severity: critical, job: node, instance: "node-exporter:9100", mountpoint: "/" }
+            exp_annotations:
+              summary: "The server's disk has 5% free"
+              description: "Postgres is about to stop. Free space now."
+              runbook_url: "docs/runbook.md#disk-filling-up"
+
+  # ── The disk watcher itself goes quiet ─────────────────────────────────────
+  # If node-exporter stops, the two alerts above can never fire: silence must alert too.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{job="node", instance="node-exporter:9100", mountpoint="/"}'
+        values: "50 50 50 stale"
+      - series: 'node_filesystem_size_bytes{job="node", instance="node-exporter:9100", mountpoint="/"}'
+        values: "100 100 100 stale"
+    alert_rule_test:
+      - eval_time: 5m # gone for 2 minutes
+        alertname: LedgerlyDiskNotMonitored
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: LedgerlyDiskNotMonitored
+        exp_alerts:
+          - exp_labels: { severity: warning, mountpoint: "/" }
+            exp_annotations:
+              summary: "Nothing is watching the server's disk space"
+              description: "The disk alerts cannot fire while node-exporter is not reporting."
+              runbook_url: "docs/runbook.md#disk-filling-up"

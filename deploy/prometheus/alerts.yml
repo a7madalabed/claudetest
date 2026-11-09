@@ -100,3 +100,38 @@ groups:
           summary: "{{ $labels.job_name }} jobs failed permanently in the last 30 minutes"
           description: "They used up their retries; their work did not happen. Look at last_error in the jobs table."
           runbook_url: "docs/runbook.md#jobs-failing"
+
+  # The server itself (Stage 19). A full disk stops Postgres, and the app-level
+  # alerts above can't see it coming. Needs the node-exporter container in the
+  # monitoring profile (deploy/compose.yaml). Two levels: a slow fill is a
+  # working-hours problem; the last few percent is a wake-up call.
+  - name: ledgerly-server
+    rules:
+      - alert: LedgerlyDiskFillingUp
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.20
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "The server's disk has {{ $value | humanizePercentage }} free"
+          description: "Postgres stops when the disk is full. Backups and logs are the usual cause."
+          runbook_url: "docs/runbook.md#disk-filling-up"
+
+      - alert: LedgerlyDiskAlmostFull
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.08
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "The server's disk has {{ $value | humanizePercentage }} free"
+          description: "Postgres is about to stop. Free space now."
+          runbook_url: "docs/runbook.md#disk-filling-up"
+
+      # If node-exporter stops, the two alerts above can never fire: silence must
+      # alert too (the same reason backups check in with a dead man's switch).
+      - alert: LedgerlyDiskNotMonitored
+        expr: absent(node_filesystem_avail_bytes{mountpoint="/"})
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Nothing is watching the server's disk space"
+          description: "The disk alerts cannot fire while node-exporter is not reporting."
+          runbook_url: "docs/runbook.md#disk-filling-up"

@@ -19,7 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm format:check && turbo run lint typecheck test",
-    "db:up": "docker compose up -d --wait postgres",
+    "db:up": "docker compose up -d --wait postgres mailpit",
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @ledgerly/db db:generate",
     "db:migrate": "pnpm --filter @ledgerly/db db:migrate",

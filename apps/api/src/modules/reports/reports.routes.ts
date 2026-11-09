@@ -5,6 +5,7 @@ import {
   DateRangeQuerySchema,
   HouseholdParamsSchema,
   IsoDateSchema,
+  MonthStatementReportSchema,
   NetWorthReportSchema,
   RecurringReportSchema,
   SpendingByCategoryQuerySchema,
@@ -67,6 +68,23 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
         ...request.query,
         currency: request.household!.baseCurrency,
       }),
+  );
+
+  app.get(
+    "/reports/month-statement",
+    {
+      // Per household data version; the cache key also carries the household's
+      // today (Stage 17), so a new day never serves yesterday's statement.
+      config: { cache: true },
+      schema: {
+        tags,
+        summary: "This month's statement: brought forward + received − spent = net worth today",
+        params: HouseholdParamsSchema,
+        response: { 200: MonthStatementReportSchema, ...commonProblems },
+      },
+    },
+    async (request) =>
+      service.monthStatementReport(app.db, request.params.householdId, request.household!),
   );
 
   app.get(

@@ -5,6 +5,7 @@ import { formatMoney } from "@ledgerly/shared";
 import { ApiStatus, ApiStatusSkeleton } from "@/components/api-status";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { designPageEnabled } from "@/lib/dev-pages";
 import { cn } from "@/lib/utils";
 
 // Always render on request so the API status is live, not frozen at build time.
@@ -58,9 +59,11 @@ export default function HomePage() {
           <Button asChild size="lg" variant="outline">
             <Link href="/login">Sign in</Link>
           </Button>
-          <Button asChild size="lg" variant="ghost">
-            <Link href="/design">Design system</Link>
-          </Button>
+          {designPageEnabled() && (
+            <Button asChild size="lg" variant="ghost">
+              <Link href="/design">Design system</Link>
+            </Button>
+          )}
         </div>
       </header>
 

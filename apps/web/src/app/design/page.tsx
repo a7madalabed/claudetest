@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { designPageEnabled } from "@/lib/dev-pages";
 import { Button } from "@/components/ui/button";
 import { ButtonsDemo } from "./_components/buttons-demo";
 import { ColorSwatches } from "./_components/color-swatches";
@@ -25,7 +27,11 @@ const sections = [
   ["elevation", "Elevation"],
 ] as const;
 
+// Read at request time (lib/dev-pages.ts): a static page would freeze the answer at build.
+export const dynamic = "force-dynamic";
+
 export default function DesignSystemPage() {
+  if (!designPageEnabled()) notFound();
   return (
     <div className="mx-auto max-w-5xl px-5 pb-32 sm:px-8">
       <header className="sticky top-0 z-40 -mx-5 flex items-center justify-between gap-4 border-b border-border bg-background/80 px-5 py-3 backdrop-blur-md sm:-mx-8 sm:px-8">

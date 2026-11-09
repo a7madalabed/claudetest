@@ -42,7 +42,7 @@ import { useAccounts, useMe } from "@/lib/query/hooks";
 import {
   useDailyCashflow,
   useDashboardLayout,
-  useNetWorth,
+  useMonthStatement,
   useSaveDashboardLayout,
 } from "@/lib/query/reports";
 import { cn } from "@/lib/utils";
@@ -78,15 +78,13 @@ export function Dashboard({ householdId }: { householdId: string }) {
   // ── This month (fixed period) ──────────────────────────────────────────────
   const accounts = useAccounts(householdId);
   const daily = useDailyCashflow(householdId, windows.both);
-  const yearOfNetWorth = useNetWorth(householdId, trendRange("12m", householdNow(timeZone)));
-  const netWorth = accounts.data
-    ?.filter((a) => a.currency === currency)
-    .reduce((sum, a) => sum + a.balanceMinor, 0);
+  const statement = useMonthStatement(householdId);
+  // Only for "compared with the same days of last month". The statement's own
+  // figures all come from the server, in one calculation (Stage 19).
   const mtd = daily.data ? monthToDate(daily.data.days, householdNow(timeZone)) : undefined;
-  const points = yearOfNetWorth.data?.points;
-  const lastMonthEnd =
-    points && points.length >= 2 ? points[points.length - 2]!.balanceMinor : undefined;
-  const rate = mtd ? savingsRate(mtd.current.income, mtd.current.spending) : undefined;
+  const rate = statement.data
+    ? savingsRate(statement.data.receivedMinor, statement.data.spentMinor)
+    : undefined;
 
   // ── Trends (scoped by ONE range filter, kept in the URL) ───────────────────
   const searchParams = useSearchParams();
@@ -154,23 +152,18 @@ export function Dashboard({ householdId }: { householdId: string }) {
         </NoAccountsNotice>
       )}
       {/* The headline figures come from three requests; if any failed, say so once. */}
-      {(loadFailed(accounts) || loadFailed(daily) || loadFailed(yearOfNetWorth)) && (
+      {(loadFailed(accounts) || loadFailed(daily) || loadFailed(statement)) && (
         <ErrorState
           className="mb-8"
           description="Some of this month's figures couldn't be loaded. Check your connection, then try again."
-          onRetry={() =>
-            Promise.all([accounts.refetch(), daily.refetch(), yearOfNetWorth.refetch()])
-          }
+          onRetry={() => Promise.all([accounts.refetch(), daily.refetch(), statement.refetch()])}
         />
       )}
       <section aria-labelledby="this-month" className="space-y-6">
         <MonthStatement
           now={householdNow(timeZone)}
           currency={currency}
-          receivedMinor={mtd?.current.income}
-          spentMinor={mtd?.current.spending}
-          inHandMinor={netWorth}
-          broughtForwardMinor={lastMonthEnd}
+          statement={statement.data}
           previousSpentMinor={mtd?.previous.spending}
           savingsRate={rate}
         />

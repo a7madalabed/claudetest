@@ -471,7 +471,11 @@ export function BudgetsWidget({
       ) : top.length === 0 ? (
         <div className="py-10 text-center text-sm text-muted-foreground">
           No budgets yet.{" "}
-          <Link href={`/app/${householdId}/budgets?new=1`} className="text-primary hover:underline">
+          {/* Underlined: inside a sentence, colour alone can't mark a link (WCAG 1.4.1). */}
+          <Link
+            href={`/app/${householdId}/budgets?new=1`}
+            className="text-primary underline underline-offset-4 hover:no-underline"
+          >
             Create one
           </Link>
         </div>

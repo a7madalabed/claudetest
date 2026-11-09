@@ -2245,6 +2245,55 @@
           "days"
         ]
       },
+      "MonthStatementReportInput": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "The household's current month"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "broughtForwardMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Net worth at the end of last month (before this month's first day)",
+            "example": 1250
+          },
+          "receivedMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Income so far this month, to today",
+            "example": 1250
+          },
+          "spentMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Spending so far this month, to today",
+            "example": 1250
+          },
+          "netWorthMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Net worth today",
+            "example": 1250
+          }
+        },
+        "required": [
+          "month",
+          "currency",
+          "broughtForwardMinor",
+          "receivedMinor",
+          "spentMinor",
+          "netWorthMinor"
+        ]
+      },
       "DashboardLayoutInput": {
         "type": "object",
         "properties": {
@@ -4985,6 +5034,56 @@
         },
         "required": [
           "days"
+        ],
+        "additionalProperties": false
+      },
+      "MonthStatementReport": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "The household's current month"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "broughtForwardMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Net worth at the end of last month (before this month's first day)",
+            "example": 1250
+          },
+          "receivedMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Income so far this month, to today",
+            "example": 1250
+          },
+          "spentMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Spending so far this month, to today",
+            "example": 1250
+          },
+          "netWorthMinor": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000,
+            "description": "Net worth today",
+            "example": 1250
+          }
+        },
+        "required": [
+          "month",
+          "currency",
+          "broughtForwardMinor",
+          "receivedMinor",
+          "spentMinor",
+          "netWorthMinor"
         ],
         "additionalProperties": false
       },
@@ -9337,6 +9436,79 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NetWorthReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/households/{householdId}/reports/month-statement": {
+      "get": {
+        "summary": "This month's statement: brought forward + received − spent = net worth today",
+        "tags": [
+          "Reports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "householdId",
+            "required": true,
+            "description": "UUID (v7 for server-created rows)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthStatementReport"
                 }
               }
             }

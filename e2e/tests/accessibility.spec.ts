@@ -34,8 +34,8 @@ for (const colorScheme of ["light", "dark"] as const) {
   test.describe(`accessibility (${colorScheme})`, () => {
     test.use({ colorScheme });
 
-    test("sign-in and sign-up pages", async ({ page, axe }) => {
-      for (const path of ["/login", "/signup"]) {
+    test("sign-in, sign-up, privacy and terms pages", async ({ page, axe }) => {
+      for (const path of ["/login", "/signup", "/privacy", "/terms"]) {
         await page.goto(path);
         await expect(page.getByRole("main")).toBeVisible();
         expect(describe((await axe().analyze()).violations), path).toEqual([]);
@@ -71,6 +71,52 @@ for (const colorScheme of ["light", "dark"] as const) {
         const pageName = path.replace(user.home, "") || "/ (dashboard)";
         expect(describe((await axe().analyze()).violations), pageName).toEqual([]);
       }
+    });
+
+    /*
+     * The first sweep always starts from a household with an account, a transaction
+     * and a budget, which hides every "nothing here yet" state, and it never has
+     * income, so the savings stamp was never checked either. Stage 18's new colours
+     * made the "Create one" link (no budgets yet) fail contrast, and nothing noticed.
+     */
+    test("a brand-new household, before anything is added", async ({ page, user, axe }) => {
+      // Collect every page's problems, then assert once: one bad page mustn't hide the rest.
+      const problems: string[] = [];
+      for (const path of APP_PAGES.map((p) => `${user.home}${p}`)) {
+        await page.goto(path);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await page.waitForLoadState("networkidle");
+        const pageName = path.replace(user.home, "") || "/ (dashboard)";
+        problems.push(
+          ...describe((await axe().analyze()).violations).map((v) => `${pageName}: ${v}`),
+        );
+      }
+      expect(problems).toEqual([]);
+    });
+
+    test("the dashboard with income and no budgets (savings stamp, 'Create one')", async ({
+      page,
+      user,
+      account,
+      userApi,
+      axe,
+    }) => {
+      for (const [amountMinor, description] of [
+        [200_000, "Salary"],
+        [-190_000, "Rent"],
+      ] as const) {
+        await userApi.post(`/households/${user.householdId}/transactions`, {
+          accountId: account.id,
+          amountMinor,
+          occurredOn: today(),
+          description,
+        });
+      }
+      await page.goto(user.home);
+      await expect(page.getByText("Below target")).toBeVisible(); // the stamp is on screen
+      await expect(page.getByRole("link", { name: "Create one" })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      expect(describe((await axe().analyze()).violations), "dashboard").toEqual([]);
     });
   });
 }

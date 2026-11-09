@@ -153,3 +153,86 @@ describe("dashboard layout", () => {
     expect(dupes.statusCode).toBe(400);
   });
 });
+
+/*
+ * The dashboard's month statement (Stage 19). Its four lines used to come from
+ * three different calculations, so with a bill dated tomorrow, or an archived
+ * account, the sum didn't add up and a made-up "adjusted" line filled the gap.
+ * Now one query answers all of it, so the arithmetic holds by construction.
+ */
+describe("month statement", () => {
+  const ctx = useTestApp();
+  const as = (method: "GET" | "POST" | "PATCH", url: string, payload?: object) =>
+    request(ctx.app, OWNER, { method, url, ...(payload && { payload }) });
+
+  const iso = (date: Date) => date.toISOString().slice(0, 10);
+  const today = new Date();
+  const todayIso = iso(today);
+  const monthStart = iso(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)));
+  const lastMonthDay = iso(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1)));
+  const tomorrow = iso(new Date(today.getTime() + 86_400_000));
+
+  async function newHousehold() {
+    const created = await as("POST", "/v1/households", {
+      name: `Statement ${Math.random()}`,
+      timeZone: "UTC",
+    });
+    const households = created.json().households as Array<{ id: string; name: string }>;
+    return households.find((h) => h.name.startsWith("Statement"))!.id;
+  }
+
+  it("adds up with a loan, an archived account, a transfer and a bill dated tomorrow", async () => {
+    const base = `/v1/households/${await newHousehold()}`;
+    const account = async (name: string, type: string, openingBalanceMinor: number) =>
+      (await as("POST", `${base}/accounts`, { name, type, openingBalanceMinor })).json()
+        .id as string;
+    const checking = await account("Checking", "checking", 100_000);
+    const savings = await account("Old savings", "savings", 500_000);
+    await account("Mortgage", "loan", -2_000_000);
+    const add = (accountId: string, amountMinor: number, occurredOn: string, description: string) =>
+      as("POST", `${base}/transactions`, { accountId, amountMinor, occurredOn, description });
+
+    await add(checking, 300_000, lastMonthDay, "Old salary");
+    await add(savings, 1_000, lastMonthDay, "Interest");
+    await add(checking, 200_000, todayIso, "Salary");
+    await add(checking, -5_000, todayIso, "Coffee");
+    await add(checking, -150_000, tomorrow, "Rent, dated tomorrow");
+    await as("POST", `${base}/transfers`, {
+      fromAccountId: checking,
+      toAccountId: savings,
+      amountMinor: 40_000,
+      occurredOn: todayIso,
+    });
+    await as("PATCH", `${base}/accounts/${savings}`, { archived: true });
+
+    const response = await as("GET", `${base}/reports/month-statement`);
+    expect(response.statusCode).toBe(200);
+    const statement = response.json();
+
+    expect(statement).toEqual({
+      month: monthStart.slice(0, 7),
+      currency: "USD",
+      // Opening balances (100,000 + 500,000 − 2,000,000, the loan counts) plus last month's 301,000.
+      broughtForwardMinor: -1_099_000,
+      receivedMinor: 200_000, // the transfer isn't income
+      spentMinor: 5_000, // …nor spending; and tomorrow's rent hasn't happened yet
+      // Today's balance: tomorrow's rent is left out, the archived account is still counted.
+      netWorthMinor: -904_000,
+    });
+    // The page's own claim, as arithmetic.
+    expect(statement.broughtForwardMinor + statement.receivedMinor - statement.spentMinor).toBe(
+      statement.netWorthMinor,
+    );
+  });
+
+  it("a brand-new household with no accounts is all zeros", async () => {
+    const base = `/v1/households/${await newHousehold()}`;
+    const statement = (await as("GET", `${base}/reports/month-statement`)).json();
+    expect(statement).toMatchObject({
+      broughtForwardMinor: 0,
+      receivedMinor: 0,
+      spentMinor: 0,
+      netWorthMinor: 0,
+    });
+  });
+});

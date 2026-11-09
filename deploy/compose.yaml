@@ -121,6 +121,9 @@ services:
     environment:
       APP_VERSION: ${IMAGE_TAG}
       API_URL: http://api:4000 # runtime configuration — not baked into the image
+      # Shown on the privacy and terms pages (Stage 19). Optional; see deploy/.env.example.
+      LEGAL_OPERATOR_NAME: ${LEGAL_OPERATOR_NAME:-}
+      LEGAL_CONTACT_EMAIL: ${LEGAL_CONTACT_EMAIL:-}
     # Next.js writes its cache (e.g. optimised images) here; everything else is read-only.
     tmpfs: [/tmp, "/app/apps/web/.next/cache:uid=1000,gid=1000"]
     depends_on:
@@ -155,6 +158,28 @@ services:
       - ./prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
     # Not published: reach it through an SSH tunnel (see docs/runbook.md).
+    networks: [backend]
+    logging: *logging
+
+  # The server's own disk space (Stage 19): a full disk stops Postgres, and nothing
+  # in the app can see it coming. Read-only, no capabilities, and only the two
+  # collectors the alerts need. The host's root is mounted read-only at /host;
+  # plain ":ro" (not "rslave") so it still starts on a host whose / isn't a shared mount.
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command:
+      - --path.rootfs=/host
+      - --collector.disable-defaults
+      - --collector.filesystem
+      - --collector.meminfo
+    volumes:
+      - /:/host:ro
+    # Not published: only Prometheus (same network) reads it.
     networks: [backend]
     logging: *logging
 

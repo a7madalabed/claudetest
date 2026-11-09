@@ -7,6 +7,7 @@ import {
   lte,
   recurringRules,
   getDailyCashflow,
+  getMonthStatement,
   getMonthlyCashflow,
   getNetWorthSeries,
   getSpendingByCategory,
@@ -15,7 +16,7 @@ import {
   transactions,
   type Database,
 } from "@ledgerly/db";
-import { detectRecurring, type DashboardWidget } from "@ledgerly/shared";
+import { detectRecurring, todayIn, type DashboardWidget } from "@ledgerly/shared";
 
 type Range = { from: string; to: string };
 
@@ -54,6 +55,25 @@ export async function netWorthReport(
   range: Range & { currency: string },
 ) {
   return { currency: range.currency, points: await getNetWorthSeries(db, householdId, range) };
+}
+
+/** The dashboard's month statement, as of the household's own today (Stage 19). */
+export async function monthStatementReport(
+  db: Database,
+  householdId: string,
+  household: { baseCurrency: string; timeZone: string },
+) {
+  const today = todayIn(household.timeZone);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  return {
+    month: today.slice(0, 7),
+    currency: household.baseCurrency,
+    ...(await getMonthStatement(db, householdId, {
+      currency: household.baseCurrency,
+      monthStart,
+      today,
+    })),
+  };
 }
 
 export async function dailyCashflowReport(db: Database, householdId: string, range: Range) {

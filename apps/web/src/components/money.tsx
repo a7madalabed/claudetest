@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
  * updates the DOM text directly on every frame WITHOUT re-rendering React.
  * Re-rendering a component 60 times per second would be wasteful.
  */
+/** Intl writes a negative with an ASCII hyphen; `Amount` uses a true minus (−). One sign everywhere. */
+const withMinus = (text: string) => text.replace(/^-/, "−");
+
 export function AnimatedMoney({
   value,
   currency = "USD",
@@ -25,7 +28,9 @@ export function AnimatedMoney({
   const reduceMotion = useReducedMotion();
   const motionValue = useMotionValue(value);
   // Always display a whole number of minor units — never a fractional cent.
-  const text = useTransform(motionValue, (latest) => formatMoney(Math.round(latest), currency));
+  const text = useTransform(motionValue, (latest) =>
+    withMinus(formatMoney(Math.round(latest), currency)),
+  );
 
   useEffect(() => {
     if (reduceMotion) {
@@ -39,7 +44,7 @@ export function AnimatedMoney({
   return (
     <span className={cn("tabular-nums", className)}>
       {/* Screen readers get the final value once, not every intermediate frame. */}
-      <span className="sr-only">{formatMoney(value, currency)}</span>
+      <span className="sr-only">{withMinus(formatMoney(value, currency))}</span>
       <motion.span aria-hidden>{text}</motion.span>
     </span>
   );

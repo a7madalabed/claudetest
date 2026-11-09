@@ -26,6 +26,7 @@ Each stage ships working code **and** a deep-dive document in [`docs/`](./docs) 
 | 16  | [Launch blockers](./docs/stage-16-launch-blockers.md)                         | ✅ Done |
 | 17  | [Polish and proof](./docs/stage-17-polish-and-proof.md)                       | ✅ Done |
 | 18  | [A visual identity](./docs/stage-18-visual-identity.md)                       | ✅ Done |
+| 19  | [Launch blockers, again](./docs/stage-19-launch-blockers-again.md)            | ✅ Done |
 
 ## Repository layout
 

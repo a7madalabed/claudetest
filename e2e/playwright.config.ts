@@ -61,6 +61,9 @@ export default defineConfig({
         HOSTNAME: "localhost",
         API_URL: E2E_API_URL,
         NEXT_TELEMETRY_DISABLED: "1",
+        // Shown on the privacy and terms pages (tests/legal.spec.ts).
+        LEGAL_OPERATOR_NAME: "Test Operator",
+        LEGAL_CONTACT_EMAIL: "privacy@ledgerly.test",
       },
       url: `${E2E_WEB_URL}/login`,
       reuseExistingServer: !CI,

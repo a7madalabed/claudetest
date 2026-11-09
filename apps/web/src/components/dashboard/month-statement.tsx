@@ -1,5 +1,6 @@
 "use client";
 
+import type { MonthStatementReport } from "@ledgerly/shared";
 import type { ReactNode } from "react";
 import { AnimatedMoney, Amount } from "@/components/money";
 import { formatMonthYear, localMonth } from "@/lib/budgets";
@@ -8,21 +9,20 @@ import { cn } from "@/lib/utils";
 
 /**
  * "Where does the month stand?", written the way a bookkeeper would: what was
- * brought forward, what came in, what went out, and what's in hand today, with
+ * brought forward, what came in, what went out, and what your net worth is today, with
  * a single rule above the total and a double rule under it. (Stage 18.)
  *
  * Everything on the page is arithmetic you can check with a pencil:
- *   brought forward + received − spent = in hand.
- * If something else changed the total (an account added mid-month, say) it gets
- * its own line, so the sum always adds up.
+ *   brought forward + received − spent = net worth today.
+ * The server computes all four figures in ONE query, as of the household's today,
+ * so the sum holds by construction (Stage 19). The first version took them from
+ * three different reports and papered over the gap with an "adjusted" line; with
+ * a bill dated tomorrow, or an archived account, that line showed made-up money.
  */
 export function MonthStatement({
   now,
   currency,
-  receivedMinor,
-  spentMinor,
-  inHandMinor,
-  broughtForwardMinor,
+  statement,
   previousSpentMinor,
   savingsRate,
   savingsGoal = 0.2,
@@ -30,11 +30,8 @@ export function MonthStatement({
   /** The household's wall clock (see householdNow). */
   now: Date;
   currency: string;
-  receivedMinor: number | undefined;
-  spentMinor: number | undefined;
-  inHandMinor: number | undefined;
-  /** The balance at the end of last month, when known. */
-  broughtForwardMinor: number | undefined;
+  /** The server's figures; undefined while loading. */
+  statement: MonthStatementReport | undefined;
   /** Spending over the same days of last month, to compare with. */
   previousSpentMinor: number | undefined;
   /** (income − spending) / income; null when nothing has come in yet. */
@@ -47,21 +44,9 @@ export function MonthStatement({
     new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1)),
   );
 
-  const known =
-    receivedMinor !== undefined && spentMinor !== undefined && inHandMinor !== undefined;
-  // If last month's closing balance is known, use it, and show any difference as
-  // its own line. If not (a brand-new household), work it back from today.
-  const broughtForward = !known
-    ? undefined
-    : (broughtForwardMinor ?? inHandMinor - receivedMinor + spentMinor);
-  const other =
-    !known || broughtForward === undefined
-      ? 0
-      : inHandMinor - broughtForward - receivedMinor + spentMinor;
-
   const spentChange =
-    spentMinor !== undefined && previousSpentMinor !== undefined
-      ? relativeChange(spentMinor, previousSpentMinor)
+    statement && previousSpentMinor !== undefined
+      ? relativeChange(statement.spentMinor, previousSpentMinor)
       : null;
   const spentNote =
     spentChange === null
@@ -97,18 +82,18 @@ export function MonthStatement({
           at={0.25}
           label="Brought forward"
           note={`from the end of ${previousMonth}`}
-          value={
-            known && broughtForward !== undefined ? (
-              <Plain value={broughtForward} currency={currency} />
-            ) : undefined
-          }
+          value={statement && <Plain value={statement.broughtForwardMinor} currency={currency} />}
         />
         <Line
           at={0.4}
           label="Received"
           value={
-            receivedMinor === undefined ? undefined : (
-              <Amount value={receivedMinor} currency={currency} className="text-xl font-semibold" />
+            statement && (
+              <Amount
+                value={statement.receivedMinor}
+                currency={currency}
+                className="text-xl font-semibold"
+              />
             )
           }
         />
@@ -117,30 +102,27 @@ export function MonthStatement({
           label="Spent"
           note={spentNote}
           value={
-            spentMinor === undefined ? undefined : (
-              <Amount value={-spentMinor} currency={currency} className="text-xl font-semibold" />
+            statement && (
+              <Amount
+                value={-statement.spentMinor}
+                currency={currency}
+                className="text-xl font-semibold"
+              />
             )
           }
         />
-        {known && Math.abs(other) >= 1 && (
-          <Line
-            at={0.65}
-            label="Accounts added or adjusted"
-            value={<Amount value={other} currency={currency} className="text-xl font-semibold" />}
-          />
-        )}
 
         {/* The sum: a single rule above, a double rule below. */}
         <div
           className="wipe-in mt-1 flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-t border-foreground/70 pt-3 pb-3 [border-bottom:5px_double_color-mix(in_oklch,var(--foreground)_70%,transparent)]"
           style={delay(0.75)}
         >
-          <dt className="font-display text-xl font-semibold">In hand today</dt>
+          <dt className="font-display text-xl font-semibold">Net worth today</dt>
           <dd className="font-display text-4xl font-semibold sm:text-5xl">
-            {inHandMinor === undefined ? (
+            {statement === undefined ? (
               <span className="block h-12 w-56 animate-pulse rounded-sm bg-muted" />
             ) : (
-              <AnimatedMoney value={inHandMinor} currency={currency} />
+              <AnimatedMoney value={statement.netWorthMinor} currency={currency} />
             )}
           </dd>
         </div>

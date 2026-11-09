@@ -70,6 +70,27 @@ export const DailyCashflowReportSchema = z
   .meta({ id: "DailyCashflowReport" });
 export type DailyCashflowReport = z.infer<typeof DailyCashflowReportSchema>;
 
+/**
+ * The dashboard's month statement: what was brought forward, what came in, what
+ * went out, and the balance today. All four come from ONE calculation, as of
+ * the household's today, so `brought forward + received − spent = net worth today`
+ * always holds. Entries dated after today haven't happened yet and are left out;
+ * every account counts (archived ones too, they still hold money or debt).
+ */
+export const MonthStatementReportSchema = z
+  .object({
+    month: z.string().meta({ example: "2026-11", description: "The household's current month" }),
+    currency: z.string(),
+    broughtForwardMinor: MinorUnitsSchema.meta({
+      description: "Net worth at the end of last month (before this month's first day)",
+    }),
+    receivedMinor: MinorUnitsSchema.meta({ description: "Income so far this month, to today" }),
+    spentMinor: MinorUnitsSchema.meta({ description: "Spending so far this month, to today" }),
+    netWorthMinor: MinorUnitsSchema.meta({ description: "Net worth today" }),
+  })
+  .meta({ id: "MonthStatementReport" });
+export type MonthStatementReport = z.infer<typeof MonthStatementReportSchema>;
+
 /** Rearrangeable dashboard widgets (the "Trends" section). Unknown ids are rejected. */
 export const DashboardWidgetSchema = z.enum([
   "cashflow",

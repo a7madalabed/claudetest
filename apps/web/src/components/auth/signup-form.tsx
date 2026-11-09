@@ -92,6 +92,17 @@ export function SignupForm({ next, email }: { next?: string; email?: string }) {
         Create account
       </Button>
       <p className="text-center text-sm text-muted-foreground">
+        By creating an account you agree to the{" "}
+        <Link href="/terms" className="font-medium text-primary underline underline-offset-4">
+          terms
+        </Link>{" "}
+        and have read the{" "}
+        <Link href="/privacy" className="font-medium text-primary underline underline-offset-4">
+          privacy page
+        </Link>
+        .
+      </p>
+      <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
           href={

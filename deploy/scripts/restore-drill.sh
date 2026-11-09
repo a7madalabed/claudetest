@@ -40,7 +40,10 @@ plain=""
 cleanup() {
   docker rm -f "$run-db" "$run-api" >/dev/null 2>&1 || true
   docker network rm "$run" >/dev/null 2>&1 || true
-  [[ -n "$plain" ]] && rm -f "$plain"
+  # An `if`, not `[[ -n … ]] && rm …`: when $plain is empty (an unencrypted backup)
+  # that line "fails", it is the LAST command here, and bash then makes the whole
+  # script exit 1 even though the drill passed (Stage 19: CI was red for it).
+  if [[ -n "$plain" ]]; then rm -f "$plain"; fi
 }
 trap cleanup EXIT
 

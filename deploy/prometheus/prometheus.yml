@@ -28,3 +28,7 @@ scrape_configs:
       - names: [worker]
         type: A
         port: 9464
+  # The server's own disk and memory (Stage 19): the node-exporter container.
+  - job_name: node
+    static_configs:
+      - targets: [node-exporter:9100]

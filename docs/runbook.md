@@ -38,6 +38,12 @@ One Linux server (2 vCPU / 4 GB is plenty to start; see Stage 12 for capacity).
 4. On the server, create `~/ledgerly/deploy/.env` from `.env.example` and fill in every
    value. **Save `ENCRYPTION_KEY` and `POSTGRES_PASSWORD` in your password manager
    now**: without the key, a restored backup can't decrypt anyone's 2FA secret.
+   Also fill in `LEGAL_OPERATOR_NAME` and `LEGAL_CONTACT_EMAIL`: they appear on the
+   public **Privacy** and **Terms** pages (linked from sign-up). Do this before you
+   invite anyone; a privacy page with nobody to contact is half a page. Read both
+   pages once and check they describe what you really do (they describe the app as
+   built; they are not legal advice, and a lawyer should read them if you take
+   other people's money data for real).
 5. If the images are private, let the server pull them: create a GitHub token with
    only `read:packages`, then `docker login ghcr.io -u <you>` with it.
 6. In GitHub → Settings:
@@ -72,16 +78,31 @@ One Linux server (2 vCPU / 4 GB is plenty to start; see Stage 12 for capacity).
    how a broken backup gets noticed before you need it.
 9. Schedule backups and the weekly drill (`crontab -e` as `deploy`). The drill
    restores the newest OFF-SITE copy: what you'd really have after losing this server.
+
    ```
    15 * * * *  cd ~/ledgerly/deploy && BACKUP_UPLOAD='aws s3 cp {} s3://YOUR-BUCKET/ledgerly/' BACKUP_AGE_RECIPIENT=age1… BACKUP_HEARTBEAT_URL=https://hc-ping.com/… scripts/backup.sh >> backups/backup.log 2>&1
    40 3 * * 1  cd ~/ledgerly/deploy && f=$(aws s3 ls s3://YOUR-BUCKET/ledgerly/ | grep -o 'ledgerly-[0-9TZ]*\.dump\.age' | sort | tail -n1) && for x in "$f" "${f%.dump.age}.sha256" "${f%.dump.age}.counts.json"; do aws s3 cp "s3://YOUR-BUCKET/ledgerly/$x" /tmp/drill/; done && IMAGE_TAG=$(tail -n1 .deploy-history) BACKUP_AGE_IDENTITY=~/.ledgerly-backup-key.txt DRILL_HEARTBEAT_URL=https://hc-ping.com/… scripts/restore-drill.sh "/tmp/drill/$f" >> backups/drill.log 2>&1; rm -rf /tmp/drill
    ```
+
    (`mkdir -p /tmp/drill` first; adapt `aws s3` to your storage's tool.)
+
+   **Set a lifecycle rule on the bucket that deletes objects after 14 days.** The
+   Privacy page tells people that data from a deleted account leaves the backups
+   "normally within 14 days"; that is only true if the bucket forgets too.
+
 10. **Alerts by email**: `cp alertmanager/alertmanager.example.yml alertmanager/alertmanager.yml`,
     fill in your SMTP login and the address to alert (the comments say how to
-    check it), then start monitoring: `dc --profile monitoring up -d prometheus alertmanager`.
+    check it), then start monitoring: `dc --profile monitoring up -d prometheus alertmanager node-exporter`
+    (node-exporter reports the server's disk space, see [Disk filling up](#disk-filling-up)).
     Test the whole path once: `dc stop worker`, wait ~3 minutes for a
     "LedgerlyWorkerDown" email, then `dc start worker` (a "resolved" email follows).
+
+11. **Outside uptime check**, the one thing nothing on the server can do: if the
+    whole server is down, so is Prometheus. Create an uptime monitor (the same
+    service as step 8 usually offers it; UptimeRobot and Better Stack are free for
+    this) for `https://SITE/healthz` and `https://SITE/api/health`, alerting your email.
+    Not `/api/health/ready`: it truthfully answers 503 from a draining instance
+    during every deploy.
 
 ## Email
 
@@ -187,7 +208,9 @@ rather than freezing the app behind them.
 `scripts/backup.sh` writes `backups/ledgerly-<UTC>.dump` with a `.sha256` and
 a `.counts.json` (exact row counts from the same snapshot), uploads them if
 `BACKUP_UPLOAD` is set (the dump encrypted for `BACKUP_AGE_RECIPIENT`), checks
-in at `BACKUP_HEARTBEAT_URL`, and keeps 14 days locally. If the check-in service
+in at `BACKUP_HEARTBEAT_URL`, and thins the local copies (`prune-backups.sh`: every
+backup for 2 days, then the first of each UTC day, nothing past 14 days; hourly
+copies for 14 days would be 336 dumps on the same disk as the database). If the check-in service
 emails you, look here first:
 
 ```bash
@@ -283,8 +306,9 @@ request a new one; only the newest link works.
 **"Delete my account."** Users can do it themselves under Settings → Security.
 It's refused while they're the only owner of a household others use (they must
 hand it over first). Deleting is immediate and permanent. Backups still hold
-the data until they age out (14 days locally, plus your off-site retention):
-say so in your privacy policy.
+the data until they age out (14 days locally, and the bucket's lifecycle rule off-site,
+which setup step 9 sets to 14 days). The Privacy page already says "normally within
+14 days"; keep the two the same.
 
 ---
 
@@ -358,3 +382,22 @@ Jobs used up their retries; their work did not happen.
 1. Why? `dc exec postgres psql -U ledgerly -c "select name, last_error, finished_at from jobs where status='failed' order by finished_at desc limit 10"`
 2. Fix the cause, then retry them:
    `dc exec postgres psql -U ledgerly -c "update jobs set status='queued', attempts=0, run_at=now() where status='failed' and name='<job>'"`
+
+### Disk filling up
+
+`LedgerlyDiskFillingUp` (under 20% free), `LedgerlyDiskAlmostFull` (under 8%), or
+`LedgerlyDiskNotMonitored` (node-exporter stopped reporting, so the first two can't fire).
+A full disk stops Postgres, so users see errors everywhere.
+
+1. How full, and what is using it? `df -h /` then `sudo du -xh /var/lib/docker --max-depth=2 | sort -h | tail`
+2. Backups on the same disk? `du -sh ~/ledgerly/deploy/backups`. `prune-backups.sh`
+   keeps them in check; if they are large, the database is large: move backups
+   off-site only, or give the server a bigger disk.
+3. Old images from past deploys: `docker image prune -a --filter "until=168h"`
+   (images in use are never removed).
+4. Logs are capped (10 MB × 5 per container), so they are rarely the cause. Postgres
+   itself growing is: `dc exec postgres psql -U ledgerly -c "select pg_size_pretty(pg_database_size('ledgerly'))"`.
+5. Still tight: resize the disk. Do it before it reaches 100%: a full disk can corrupt
+   what Postgres was writing.
+6. `LedgerlyDiskNotMonitored`: `dc --profile monitoring ps node-exporter`, then
+   `dc --profile monitoring up -d node-exporter`.

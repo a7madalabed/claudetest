@@ -30,7 +30,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."                     # → deploy/
 ENV_FILE="${ENV_FILE:-.env}"
 DIR="${BACKUP_DIR:-backups}"
-KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
 mkdir -p "$DIR"
 name="ledgerly-$(date -u +%Y%m%dT%H%M%SZ)"
 log() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
@@ -93,8 +92,9 @@ if [[ -n "${BACKUP_UPLOAD:-}" ]]; then
   [[ "$dump" == *.age ]] && rm -f "$dump"
 fi
 
-# Local retention. (Off-site retention is the storage's job, e.g. bucket lifecycle rules.)
-find "$DIR" -name 'ledgerly-*' -type f -mtime "+$KEEP_DAYS" -print -delete | sed 's/^/deleted old backup: /'
+# Local retention, thinned (Stage 19): every copy for 2 days, then one per UTC
+# day until day 14. (Off-site retention is the storage's job, e.g. bucket lifecycle rules.)
+"$(dirname "$0")/prune-backups.sh" "$DIR" | sed 's/^/deleted old backup: /'
 
 # Every step above succeeded (set -e stops at the first failure): check in.
 if [[ -n "${BACKUP_HEARTBEAT_URL:-}" ]]; then

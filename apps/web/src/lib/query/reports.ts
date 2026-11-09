@@ -3,6 +3,7 @@
 import {
   DailyCashflowReportSchema,
   DashboardLayoutSchema,
+  MonthStatementReportSchema,
   NetWorthReportSchema,
   SpendingByCategoryReportSchema,
   type DashboardWidget,
@@ -25,6 +26,15 @@ export function useNetWorth(householdId: string, range: Range) {
         signal,
       }),
     placeholderData: keepPrevious,
+  });
+}
+
+/** The dashboard's month statement: four figures from one server calculation (Stage 19). */
+export function useMonthStatement(householdId: string) {
+  return useQuery({
+    queryKey: ["households", householdId, "reports", "month-statement"],
+    queryFn: ({ signal }) =>
+      api(`${base(householdId)}/month-statement`, { schema: MonthStatementReportSchema, signal }),
   });
 }
 

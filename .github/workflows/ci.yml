@@ -192,7 +192,10 @@ jobs:
       # runner's older one reported different rule codes than the version the
       # scripts were checked with (Stage 14), and a linter must judge the same way everywhere.
       - name: Operations scripts pass shellcheck
-        run: docker run --rm -v "$PWD/deploy/scripts:/s" koalaman/shellcheck:v0.11.0 /s/backup.sh /s/deploy.sh /s/restore-drill.sh
+        run: docker run --rm -v "$PWD/deploy/scripts:/s" koalaman/shellcheck:v0.11.0 /s/backup.sh /s/deploy.sh /s/restore-drill.sh /s/prune-backups.sh /s/prune-backups.test.sh
+
+      - name: Backup retention keeps exactly what it should
+        run: deploy/scripts/prune-backups.test.sh
 
       - name: Prometheus config is valid and alert rules pass their unit tests
         run: |

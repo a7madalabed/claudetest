@@ -179,6 +179,56 @@ export async function getNetWorthSeries(
 }
 
 /**
+ * The month statement's four figures, from ONE pass over the household's
+ * transactions, so they can't disagree with each other (Stage 19).
+ *
+ *   broughtForward = opening balances + everything before `monthStart`
+ *   received/spent = this month up to and including `today` (transfers excluded)
+ *   netWorth       = opening balances + everything up to and including `today`
+ *
+ * Entries after `today` haven't happened yet and are in none of them. Every
+ * account in `currency` counts, archived or not: the same rule as the net-worth
+ * series. A transfer's two legs sit in the same window, so they cancel out in
+ * brought forward and net worth, and are in neither received nor spent.
+ */
+export async function getMonthStatement(
+  db: Database,
+  householdId: string,
+  args: { currency: string; monthStart: string; today: string },
+) {
+  const { rows } = await db.execute<{
+    opening: string;
+    before_month: string;
+    received: string;
+    spent: string;
+    to_date: string;
+  }>(sql`
+    select
+      (select coalesce(sum(${accounts.openingBalanceMinor}), 0)
+         from ${accounts}
+        where ${accounts.householdId} = ${householdId} and ${accounts.currency} = ${args.currency}) as opening,
+      coalesce(sum(t.amount_minor) filter (where t.occurred_on < ${args.monthStart}::date), 0) as before_month,
+      coalesce(sum(t.amount_minor) filter (
+        where t.occurred_on >= ${args.monthStart}::date and t.occurred_on <= ${args.today}::date
+          and t.transfer_id is null and t.amount_minor > 0), 0) as received,
+      coalesce(-sum(t.amount_minor) filter (
+        where t.occurred_on >= ${args.monthStart}::date and t.occurred_on <= ${args.today}::date
+          and t.transfer_id is null and t.amount_minor < 0), 0) as spent,
+      coalesce(sum(t.amount_minor) filter (where t.occurred_on <= ${args.today}::date), 0) as to_date
+    from ${transactions} as t
+    join ${accounts} as a on a.id = t.account_id and a.household_id = t.household_id
+    where t.household_id = ${householdId} and a.currency = ${args.currency}`);
+  const row = rows[0]!;
+  const opening = Number(row.opening);
+  return {
+    broughtForwardMinor: opening + Number(row.before_month),
+    receivedMinor: Number(row.received),
+    spentMinor: Number(row.spent),
+    netWorthMinor: opening + Number(row.to_date),
+  };
+}
+
+/**
  * Money in and out per calendar day in [from, to), same definitions as the
  * monthly cash-flow report (transfers excluded). Days with no activity are omitted.
  */
