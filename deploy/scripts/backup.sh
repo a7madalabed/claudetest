@@ -27,7 +27,11 @@
 #                       snapshot as the dump; restore-drill.sh compares against it
 set -euo pipefail
 
-cd "$(dirname "$0")/.."                     # → deploy/
+# Where this script lives, as an ABSOLUTE path, before the cd below: $0 may be
+# relative to the directory we were started in (CI runs deploy/scripts/backup.sh
+# from the repo root), and a sibling script looked up afterwards wouldn't be found.
+SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPTS/.."                            # → deploy/
 ENV_FILE="${ENV_FILE:-.env}"
 DIR="${BACKUP_DIR:-backups}"
 mkdir -p "$DIR"
@@ -94,7 +98,7 @@ fi
 
 # Local retention, thinned (Stage 19): every copy for 2 days, then one per UTC
 # day until day 14. (Off-site retention is the storage's job, e.g. bucket lifecycle rules.)
-"$(dirname "$0")/prune-backups.sh" "$DIR" | sed 's/^/deleted old backup: /'
+"$SCRIPTS/prune-backups.sh" "$DIR" | sed 's/^/deleted old backup: /'
 
 # Every step above succeeded (set -e stops at the first failure): check in.
 if [[ -n "${BACKUP_HEARTBEAT_URL:-}" ]]; then
