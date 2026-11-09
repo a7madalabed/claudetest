@@ -34,8 +34,8 @@ for (const colorScheme of ["light", "dark"] as const) {
   test.describe(`accessibility (${colorScheme})`, () => {
     test.use({ colorScheme });
 
-    test("sign-in, sign-up, privacy and terms pages", async ({ page, axe }) => {
-      for (const path of ["/login", "/signup", "/privacy", "/terms"]) {
+    test("home, sign-in, sign-up, privacy and terms pages", async ({ page, axe }) => {
+      for (const path of ["/", "/login", "/signup", "/privacy", "/terms"]) {
         await page.goto(path);
         await expect(page.getByRole("main")).toBeVisible();
         expect(describe((await axe().analyze()).violations), path).toEqual([]);

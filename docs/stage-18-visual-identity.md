@@ -122,6 +122,8 @@ In hand today                                              $31,435.84
 
 `31,296.76 + 2,125.00 − 1,985.92 = 31,435.84`. The statement is built so it always adds up: if something other than income and spending changed the balance (an account added mid-month, say), it gets its own line instead of making the arithmetic wrong.
 
+> **Correction (Stage 19).** That last sentence described the bug, not a safeguard. The "adjusted" line hid the fact that the four figures came from three different calculations, so a bill dated tomorrow or an archived account produced made-up money (for example "Net worth −$550" for someone who had $950). The statement now comes from one server calculation, the line is gone, and "In hand today" is "Net worth today", because a loan or card lowers it. See [Stage 19, section 4](./stage-19-launch-blockers-again.md#4-a-statement-that-didnt-add-up). The mock-up above is kept as it was drawn.
+
 - **The tally** is the days of the month in groups of five, four strokes and a diagonal, with days gone inked and days to come faint. It is an SVG with a text label for screen readers.
 - **The stamp** gives one verdict: on target, below target, or spent more than came in. It is the only decoration on the page that isn't structure, and it appears nowhere else.
 - **The margin**, two thin red lines at the left, is ruled into this one page only.

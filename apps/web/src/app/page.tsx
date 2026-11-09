@@ -1,117 +1,102 @@
 import Link from "next/link";
-import { Suspense } from "react";
-import { ArrowRight, Check } from "lucide-react";
-import { formatMoney } from "@ledgerly/shared";
-import { ApiStatus, ApiStatusSkeleton } from "@/components/api-status";
+import { ArrowRight } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { designPageEnabled } from "@/lib/dev-pages";
-import { cn } from "@/lib/utils";
 
-// Always render on request so the API status is live, not frozen at build time.
+// Read at request time: the style-guide link below depends on the server's settings.
 export const dynamic = "force-dynamic";
 
-/** How many of the stages below are finished. */
-const COMPLETED_STAGES = 15;
+/** Links inside a line of text are always underlined: colour alone can't mark a link. */
+const textLink = "font-medium text-primary underline underline-offset-4";
 
-const stages = [
-  "Foundations & architecture",
-  "Design system",
-  "Database design",
-  "Backend API",
-  "Authentication & security",
-  "Frontend app shell",
-  "Transactions",
-  "Dashboard & charts",
-  "Budgets & goals",
-  "Imports & background jobs",
-  "Households & real-time",
-  "Performance & scalability",
-  "Testing strategy",
-  "Deployment & operations",
-  "Launch readiness",
+/** What it does: only things the app really does today. */
+const points = [
+  {
+    title: "Every account in one place",
+    text: "Checking, savings, cards, loans and cash, each with its own balance.",
+  },
+  {
+    title: "Where the month stands",
+    text: "One statement of what came in, what went out, and what you're worth today.",
+  },
+  {
+    title: "Budgets and goals",
+    text: "Set a limit for a category and get a warning when you pass it. Save towards something specific.",
+  },
+  {
+    title: "Shared with your household",
+    text: "Invite the people you live with. Everyone sees the same figures, as an owner, an editor or a viewer.",
+  },
+  {
+    title: "Yours to take with you",
+    text: "Import a bank statement from a CSV file, download all your data, or delete your account whenever you like.",
+  },
 ];
 
+/** The public front door: what Ledgerly is, and how to start. (Stage 19: it used to be a build-progress page.) */
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-10 px-6 py-16">
-      <div className="absolute top-4 right-4">
+    <div className="mx-auto min-h-dvh max-w-2xl px-6 py-6 sm:px-10">
+      <header className="flex items-center justify-between pb-16">
+        <Logo />
         <ThemeToggle />
-      </div>
-
-      <header className="animate-rise space-y-4">
-        <p className="font-mono text-caption tracking-widest text-primary uppercase">
-          {COMPLETED_STAGES === stages.length
-            ? `All ${stages.length} stages complete`
-            : `Stage ${COMPLETED_STAGES + 1} · ${stages[COMPLETED_STAGES]}`}
-        </p>
-        <h1 className="text-display">Ledgerly</h1>
-        <p className="max-w-prose text-lg text-pretty text-muted-foreground">
-          Your money, beautifully organised. Built in fifteen stages, from the first design token to
-          a tested, observable production deployment that&rsquo;s ready for real people.
-        </p>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Button asChild size="lg">
-            <Link href="/signup">
-              Get started <ArrowRight />
-            </Link>
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/login">Sign in</Link>
-          </Button>
-          {designPageEnabled() && (
-            <Button asChild size="lg" variant="ghost">
-              <Link href="/design">Design system</Link>
-            </Button>
-          )}
-        </div>
       </header>
 
-      <section className="animate-rise [animation-delay:120ms]">
-        {/* Suspense streams the page instantly and fills in the status when the API answers. */}
-        <Suspense fallback={<ApiStatusSkeleton />}>
-          <ApiStatus />
-        </Suspense>
-      </section>
+      <main className="space-y-14 pb-16">
+        <section className="animate-rise space-y-5">
+          <h1 className="font-display text-display">Ledgerly</h1>
+          <p className="max-w-prose text-lg text-pretty text-muted-foreground">
+            The money of a household, kept like a ledger. Add your accounts, record what comes in
+            and what goes out, and see where the month stands, together with the people you share a
+            home with.
+          </p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button asChild size="lg">
+              <Link href="/signup">
+                Get started <ArrowRight />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/login">Sign in</Link>
+            </Button>
+          </div>
+        </section>
 
-      <section className="animate-rise space-y-3 [animation-delay:240ms]">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Shared code check —{" "}
-          <code className="font-mono">formatMoney(1234567, &quot;USD&quot;)</code>
-        </h2>
-        <p className="font-mono text-3xl tabular-nums">{formatMoney(1234567, "USD")}</p>
-      </section>
+        <section aria-labelledby="what-it-does" className="animate-rise [animation-delay:120ms]">
+          <h2 id="what-it-does" className="font-display text-xl font-semibold">
+            What it does
+          </h2>
+          <dl className="mt-3 divide-y divide-border border-y border-border">
+            {points.map((point) => (
+              <div key={point.title} className="grid gap-1 py-4 sm:grid-cols-[14rem_1fr] sm:gap-6">
+                <dt className="font-medium">{point.title}</dt>
+                <dd className="text-muted-foreground">{point.text}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      </main>
 
-      <section className="animate-rise [animation-delay:360ms]">
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">Roadmap</h2>
-        <ol className="grid gap-1.5 sm:grid-cols-2">
-          {stages.map((stage, index) => {
-            const number = index + 1;
-            const done = number <= COMPLETED_STAGES;
-            const current = number === COMPLETED_STAGES + 1;
-            return (
-              <li key={stage} className="flex items-center gap-3 text-sm">
-                <span className="w-5 font-mono text-xs text-muted-foreground tabular-nums">
-                  {number}
-                </span>
-                <span
-                  className={cn(
-                    current && "font-medium",
-                    done && "text-foreground",
-                    !done && !current && "text-muted-foreground",
-                  )}
-                >
-                  {stage}
-                </span>
-                {done && <Check aria-label="done" className="size-3.5 text-positive" />}
-                {current && (
-                  <span aria-label="in progress" className="size-2 rounded-full bg-primary" />
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </section>
-    </main>
+      <footer className="border-t border-border py-6 text-sm text-muted-foreground">
+        <Link href="/privacy" className={textLink}>
+          Privacy
+        </Link>{" "}
+        ·{" "}
+        <Link href="/terms" className={textLink}>
+          Terms
+        </Link>
+        {designPageEnabled() && (
+          <>
+            {" "}
+            ·{" "}
+            <Link href="/design" className={textLink}>
+              Design system
+            </Link>
+          </>
+        )}
+      </footer>
+    </div>
   );
 }

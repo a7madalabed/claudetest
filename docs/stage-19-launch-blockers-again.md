@@ -15,7 +15,7 @@
 5. [Links you couldn't see](#5-links-you-couldnt-see)
 6. [Privacy and terms](#6-privacy-and-terms)
 7. [The server's disk](#7-the-servers-disk)
-8. [Three small things](#8-three-small-things)
+8. [Small things](#8-small-things)
 9. [Found while fixing, and left for later](#9-found-while-fixing-and-left-for-later)
 10. [Results](#10-results)
 11. [Run it yourself](#11-run-it-yourself)
@@ -34,6 +34,7 @@
 | Legal      | Public **Privacy** and **Terms** pages, linked from sign-up; the operator's name and contact come from the server's settings |
 | Operations | A disk-space alert (two levels, plus one for the watcher going quiet); local backups thinned to one per day after two days   |
 | Small      | `pnpm db:up` also starts the mail inbox; one minus sign everywhere; the design style guide is not public in production       |
+| Home page  | The public front door says what Ledgerly is and how to start; the build-progress page is gone, with the version it showed    |
 
 ---
 
@@ -166,11 +167,12 @@ The third is the same idea as the backups' dead man's switch (Stage 16): if the 
 
 ---
 
-## 8. Three small things
+## 8. Small things
 
 - **`pnpm db:up` starts Mailpit too.** The README and the tests assumed it did; it started only Postgres, so a first run failed 2 tests and sign-up emails went nowhere.
 - **One minus sign.** The statement's total read `-$550.00` (a hyphen, from the number formatter) under lines written `−$50.00` (a real minus sign). The animated total now uses the real minus, for what you see and for what a screen reader hears. A test fails without it.
 - **The design style guide is not public in production.** `/design` answered 200 to anyone. It now answers 404 in production unless `SHOW_DESIGN_PAGE=true`, and the home page's link to it disappears with it. In development nothing changes.
+- **The home page is a front door.** `/` was the learning project's status page: "all 15 stages complete", a roadmap of build stages, a "shared code check" and a live API status that printed the build version to anyone. It now says what Ledgerly is, lists what it really does (nothing it doesn't), has "Get started" and "Sign in", and links to Privacy and Terms. The browser test asserts what a visitor must see, and that "stage", "roadmap" and a version number appear nowhere; it was red against the old page ("all 15 stages complete"). The status component and its server call were dead code afterwards and were deleted. Its wording and look are a first version for you to change.
 
 ---
 
@@ -178,9 +180,8 @@ The third is the same idea as the backups' dead man's switch (Stage 16): if the 
 
 Honest notes, not excuses:
 
-- **The public home page (`/`) is still the learning project's status page.** It says "Built in fifteen stages", counts stages (stuck at 15), shows a "Shared code check" line and a live API status (including the build version). It is not a front door for a product. This is a product and design decision, so it was **not** changed here. It is the first thing a visitor sees.
-- **Account balances count entries dated in the future.** The Accounts page (and the old dashboard) include a bill dated next week in today's balance. That is a legitimate choice for a "projected" balance, but it differs from the month statement, which now says "as of today". Worth deciding on purpose.
-- **The net-worth chart's last point** includes the whole current month (from reading the code, not tested), so it can differ from "Net worth today" when future-dated entries exist.
+- **The first push of this stage failed CI, on my own new code.** `backup.sh` changes directory at its top, and the new call to `prune-backups.sh` found it through a path that was only valid _before_ that. It broke when CI ran the script from the repo root (`deploy/scripts/backup.sh`) and would have worked by luck from the runbook's cron line. My local check had run the pipeline outside `backup.sh`, so it missed this; CI's real "Back up, then prove the backup restores" step caught it. The fix resolves the script's own folder to an absolute path first, and was reproduced using `backup.sh`'s real header lines before it was fixed. The second CI run passed. **The lesson: test an integration through the real entry point, not a lookalike.**
+- **Three different "net worths" when a bill is dated in the future (confirmed, not fixed).** With a $1,000 account and a $500 bill dated next week: the month statement says **$1,000** (as of today), the account balance says **$500**, and the net-worth chart's current-month point says **$500**. Both of the latter count entries that haven't happened yet. The statement is right for what it claims ("today"); the other two behave like a _projected_ balance. Showing both on one dashboard is confusing. Making everything "as of today" (or labelling the others as projected) is a product decision that touches the Accounts page, the charts and the API's `balanceMinor`, so it was not changed here.
 - **A stale test server fooled a browser check.** Next.js renames its own process to `next-server`, so `pkill -f server.js` never stopped it, and a pre-rebuild copy kept serving pages whose script files were gone. If a browser check shows "This page couldn't load", look for an old server first.
 - **One timing test failed once under load, and was not reproduced.** `worker.test.ts › wakes on NOTIFY instead of waiting for the next poll` gives the worker 2 seconds to wake up. It failed ("not done within 2000 ms") in one full API run while other work was running, then passed 4 of 4 times on its own and in 3 further full runs. These changes don't touch the worker, so it is not believed to be caused by them, but "not reproduced" is not "fixed": if CI shows it, a looser budget (or retry) is the likely cure.
 - **Only `restore-drill.sh` had the exit-code bug**, and CI's real drill step is what guards it; no separate test was added for it.
@@ -201,7 +202,8 @@ Honest notes, not excuses:
 | `/design` in production                     | 200 for anyone                                   | 404                                                  |
 | `pnpm db:up`                                | Postgres only (2 tests failed on a fresh run)    | Postgres and the mail inbox                          |
 | Total minus sign                            | `-$550.00`                                       | `−$550.00`                                           |
-| Tests                                       | 492 (db 35, api 222, shared 89, web 117, e2e 29) | **514** (db 35, api 224, shared 89, web 128, e2e 38) |
+| Home page                                   | a build-progress page, with the API's version    | what it is and how to start; nothing about the build |
+| Tests                                       | 492 (db 35, api 222, shared 89, web 117, e2e 29) | **516** (db 35, api 224, shared 89, web 128, e2e 40) |
 
 ---
 
@@ -235,4 +237,5 @@ None of this can be done from the code. The runbook's _Setting up a server_ has 
 - **Alerts:** your SMTP details in `alertmanager.yml`, then start `prometheus alertmanager node-exporter` and run the stop-the-worker test. Add the outside uptime check (step 11).
 - **Email:** verify your sending domain (SPF, DKIM, DMARC).
 - **Legal:** set `LEGAL_OPERATOR_NAME` and `LEGAL_CONTACT_EMAIL` in `deploy/.env`, read both pages, and have a lawyer read them if real people's money data is involved.
-- **Decide:** what the public home page should be.
+- **Read the new home page** (`/`) and change its words or look to taste. It is a deliberately plain first version.
+- **Decide, on purpose:** whether account balances should include bills dated in the future (see section 9: this is now a confirmed inconsistency on the dashboard).
